@@ -44,6 +44,17 @@ __FLAME_GPU_EXIT_FUNC__ void <xsl:value-of select="gpu:name"/>(){
 }
 </xsl:for-each>
 
+<!-- Prototypes for Host functions -->
+<xsl:for-each select="gpu:xmodel/gpu:environment/gpu:hostFunctions/gpu:hostFunction">
+/**
+ * <xsl:value-of select="gpu:name"/> FLAMEGPU Host function, called at specific locations in the layer heirarchy.
+ * Automatically generated using functions.xslt
+ */
+__FLAME_GPU_HOST_FUNC__ void <xsl:value-of select="gpu:name"/>(){
+
+}
+</xsl:for-each>
+
 <!-- Prototypes for agent functions -->
 <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent/xmml:functions/gpu:function">
 /**
