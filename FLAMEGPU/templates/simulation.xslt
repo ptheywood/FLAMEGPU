@@ -822,20 +822,39 @@ PROFILE_SCOPED_RANGE("singleIteration");
 	<xsl:for-each select="gpu:xmodel/xmml:layers/xmml:layer">
 	/* Layer <xsl:value-of select="position()"/>*/
 	<xsl:for-each select="gpu:layerFunction">
+	<xsl:variable name="function" select="xmml:name"/>
+  <xsl:variable name="stream_num" select="position()"/>
+  <!-- Agent functions -->
+  <xsl:for-each select="../../../xmml:xagents/gpu:xagent/xmml:functions/gpu:function[xmml:name=$function]">
 #if defined(INSTRUMENT_AGENT_FUNCTIONS) &amp;&amp; INSTRUMENT_AGENT_FUNCTIONS
-	cudaEventRecord(instrument_start);
+  cudaEventRecord(instrument_start);
 #endif
-	<xsl:variable name="function" select="xmml:name"/><xsl:variable name="stream_num" select="position()"/><xsl:for-each select="../../../xmml:xagents/gpu:xagent/xmml:functions/gpu:function[xmml:name=$function]">
     PROFILE_PUSH_RANGE("<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>");
-	<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>(stream<xsl:value-of select="$stream_num"/>);
+	<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="$function"/>(stream<xsl:value-of select="$stream_num"/>);
     PROFILE_POP_RANGE();
 #if defined(INSTRUMENT_AGENT_FUNCTIONS) &amp;&amp; INSTRUMENT_AGENT_FUNCTIONS
-	cudaEventRecord(instrument_stop);
-	cudaEventSynchronize(instrument_stop);
-	cudaEventElapsedTime(&amp;instrument_milliseconds, instrument_start, instrument_stop);
-	printf("Instrumentation: <xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/> = %f (ms)\n", instrument_milliseconds);
+  cudaEventRecord(instrument_stop);
+  cudaEventSynchronize(instrument_stop);
+  cudaEventElapsedTime(&amp;instrument_milliseconds, instrument_start, instrument_stop);
+  printf("Instrumentation: <xsl:value-of select="$function"/>_<xsl:value-of select="xmml:name"/> = %f (ms)\n", instrument_milliseconds);
 #endif
-	</xsl:for-each></xsl:for-each>cudaDeviceSynchronize();
+  </xsl:for-each>
+  <!-- Host layer functions -->
+  <!-- @todo - do we need to syncrhonize here to avoid host and device concurrency? -->
+  <xsl:for-each select="../../../gpu:environment/gpu:hostFunctions/gpu:hostFunction[gpu:name=$function]">
+#if defined(INSTRUMENT_AGENT_FUNCTIONS) &amp;&amp; INSTRUMENT_AGENT_FUNCTIONS
+  cudaEventRecord(instrument_start);
+#endif
+    PROFILE_PUSH_RANGE("hostFunction_<xsl:value-of select="$function"/>");
+  <xsl:value-of select="$function"/>();
+#if defined(INSTRUMENT_AGENT_FUNCTIONS) &amp;&amp; INSTRUMENT_AGENT_FUNCTIONS
+  cudaEventRecord(instrument_stop);
+  cudaEventSynchronize(instrument_stop);
+  cudaEventElapsedTime(&amp;instrument_milliseconds, instrument_start, instrument_stop);
+  printf("Instrumentation: hostFunction_<xsl:value-of select="$function"/> = %f (ms)\n", instrument_milliseconds);
+#endif
+</xsl:for-each>
+	</xsl:for-each>cudaDeviceSynchronize();
   </xsl:for-each>
     
     /* Call all step functions */
