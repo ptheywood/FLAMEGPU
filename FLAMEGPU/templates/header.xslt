@@ -29,6 +29,7 @@
 #define __FLAME_GPU_STEP_FUNC__
 #define __FLAME_GPU_EXIT_FUNC__
 #define __FLAME_GPU_HOST_FUNC__ __host__
+#define __FLAME_GPU_HOST_LAYER_FUNC__ __host__
 
 #define USE_CUDA_STREAMS
 #define FAST_ATOMIC_SORTING
