@@ -412,7 +412,7 @@ endif
 # Explicit rules are used (rather than generic) as the dependancis are non-trivial (currently)
 $(BUILD_DIR)/io.cu$(OBJ_EXT): $(SRC_DYNAMIC)/io.cu $(SRC_DYNAMIC)/header.h $(MAKEFILE_LIST)
 	$(EXEC) $(NVCC) $(CONSOLE_INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
-$(BUILD_DIR)/simulation.cu$(OBJ_EXT): $(SRC_DYNAMIC)/simulation.cu $(SRC_DYNAMIC)/FLAMEGPU_kernals.cu $(FUNCTIONS_FILES) $(SRC_DYNAMIC)/header.h $(MAKEFILE_LIST)
+$(BUILD_DIR)/simulation.cu$(OBJ_EXT): $(SRC_DYNAMIC)/simulation.cu $(SRC_DYNAMIC)/FLAMEGPU_kernals.cu $(FUNCTIONS_FILES) $(EXTRA_FUNCTIONS_INCLUDES) $(SRC_DYNAMIC)/header.h $(MAKEFILE_LIST)
 	$(EXEC) $(NVCC) $(CONSOLE_INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 $(BUILD_DIR)/main_console.cu$(OBJ_EXT): $(SRC_DYNAMIC)/main.cu $(SRC_DYNAMIC)/header.h $(MAKEFILE_LIST)
 	$(EXEC) $(NVCC) $(CONSOLE_INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
