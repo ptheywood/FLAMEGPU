@@ -11,6 +11,9 @@ import json
 import argparse
 from distutils.util import strtobool
 from collections import OrderedDict
+import xml.etree.ElementTree as ET
+from xml.dom import expatbuilder
+
 
 JSON_INDENT = 4
 
@@ -40,6 +43,7 @@ class GridGenerator:
         grid_size=None,
         edge_length=None,
         edge_capacity=None,
+        spatial=False,
         force=False,
         verbose=False,
         pretty=True
@@ -49,11 +53,15 @@ class GridGenerator:
         self.edge_length = edge_length if edge_length is not None else self.DEFAULT_EDGE_LENGTH
         self.edge_capacity = edge_capacity if edge_capacity is not None else self.DEFAULT_EDGE_CAPACITY
 
+        self.spatial = spatial
         self.force = force
         self.verbose = verbose
         self.pretty = pretty
 
         self.network_data, self.network_csr  = self.generate_network_json()
+
+        self.output_spatial_configuration()
+        self.output_information()
 
     def get_vertex_id(self, row, col):
         return (row * self.grid_size) + col
@@ -199,6 +207,80 @@ class GridGenerator:
             except ValueError:
                 sys.stdout.write('Please respond with \'y\' or \'n\'.\n')
 
+
+    def output_spatial_configuration(self):
+        if self.spatial:
+            # Find the min and max X/y/z.
+            xvals = [v["x"] for v in self.network_data[self.KEY_VERTICES]]
+            yvals = [v["y"] for v in self.network_data[self.KEY_VERTICES]]
+            zvals = [v["z"] for v in self.network_data[self.KEY_VERTICES]]
+
+            min_x = min(xvals)
+            max_x = max(xvals)
+            min_y = min(yvals)
+            max_y = max(yvals)
+            min_z = min(zvals)
+            max_z = max(zvals)
+
+            # Calc the range
+            range_x = max_x - min_x
+            range_y = max_y - min_y
+            range_z = max_z - min_z
+
+            # If any range is less than the edge length (i.e. z) bump the max val.
+            if(range_x < self.edge_length):
+                max_x = self.edge_length
+            if(range_y < self.edge_length):
+                max_y = self.edge_length
+            if(range_z < self.edge_length):
+                max_z = self.edge_length
+
+
+            # Calc the comm radius
+            range_min = min([max_x, max_y, max_z])
+            comm_radius = min(range_min, self.edge_length)
+            # If it does not divide perfectly into the min range, round up?
+            # @future - this should not be an issue for this generator. 
+
+            # Generate XML
+            xml_root = ET.Element("gpu:partitioningSpatial")
+            xml_radius = ET.SubElement(xml_root, "gpu:radius")
+            xml_radius.text = str(comm_radius)
+            xml_xmin = ET.SubElement(xml_root, "gpu:xmin")
+            xml_xmin.text = str(min_x)
+            xml_xmax = ET.SubElement(xml_root, "gpu:xmax")
+            xml_xmax.text = str(max_x)
+            xml_ymin = ET.SubElement(xml_root, "gpu:ymin")
+            xml_ymin.text = str(min_y)
+            xml_ymax = ET.SubElement(xml_root, "gpu:ymax")
+            xml_ymax.text = str(max_y)
+            xml_zmin = ET.SubElement(xml_root, "gpu:zmin")
+            xml_zmin.text = str(min_z)
+            xml_zmax = ET.SubElement(xml_root, "gpu:zmax")
+            xml_zmax.text = str(max_z)
+
+            # Print to stdout
+            ugly_xml = ET.tostring(xml_root, 'utf-8')
+            reparsed = expatbuilder.parseString(ugly_xml, False)
+            pretty_xml = reparsed.toprettyxml(indent="\t")
+            if len(pretty_xml) > 0:
+                start_char = pretty_xml.find('\n') + 1
+                print(pretty_xml[start_char:])
+
+
+    def output_information(self):
+
+        edge_count = len(self.network_data[self.KEY_EDGES])
+        vertex_count = len(self.network_data[self.KEY_VERTICES])
+        capacity = edge_count * self.edge_capacity
+
+        print("edge count   {:}".format(edge_count))
+        print("vertex count {:}".format(vertex_count))
+        print("capacity     {:}".format(capacity))
+
+
+        print("info!")
+
 def main():
     parser = argparse.ArgumentParser(description="Generate a grid network stored as JSON")
     parser.add_argument(
@@ -226,6 +308,11 @@ def main():
         help="The capacity for each edge in the grid."
     )
     parser.add_argument(
+        "--spatial",
+        action="store_true",
+        help="output the spatial partitioning configuration required."
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -250,6 +337,7 @@ def main():
         args.grid_size,
         args.edge_length,
         args.edge_capacity,
+        args.spatial,
         args.force,
         args.verbose,
         args.pretty

@@ -231,7 +231,13 @@ __FLAME_GPU_EXIT_FUNC__ void exitFunc(){
 __FLAME_GPU_FUNC__ int output_location(xmachine_memory_Agent* agent, xmachine_message_location_list* location_messages){
    
    	// Add the location message    
-    add_location_message(location_messages, agent->id, agent->currentEdge, agent->position);
+    #if defined(xmachine_message_location_partitioningNone)
+        add_location_message(location_messages, agent->id, agent->currentEdge, agent->position);
+    #elif defined(xmachine_message_location_partitioningSpatial)
+        add_location_message(location_messages, agent->id, agent->currentEdge, agent->position, agent->x, agent->y, agent->z);
+    #elif defined(xmachine_message_location_partitioningGraphEdge)
+        add_location_message(location_messages, agent->id, agent->currentEdge, agent->position);
+    #endif
 
     // Reset any per-iteration values (short term memory)
     agent->hasIntent = false;
@@ -244,17 +250,44 @@ __FLAME_GPU_FUNC__ int output_location(xmachine_memory_Agent* agent, xmachine_me
  * read_locations FLAMEGPU Agent Function
  * Iterate list of location messages to determine 
  */
+#if defined(xmachine_message_location_partitioningNone)
+__FLAME_GPU_FUNC__ int read_locations(xmachine_memory_Agent* agent, xmachine_message_location_list* location_messages, xmachine_message_intent_list* intent_messages){
+#elif defined(xmachine_message_location_partitioningSpatial)
+__FLAME_GPU_FUNC__ int read_locations(xmachine_memory_Agent* agent, xmachine_message_location_list* location_messages, xmachine_message_location_PBM* partition_matrix, xmachine_message_intent_list* intent_messages){
+#elif defined(xmachine_message_location_partitioningGraphEdge)
 __FLAME_GPU_FUNC__ int read_locations(xmachine_memory_Agent* agent, xmachine_message_location_list* location_messages, xmachine_message_location_bounds* message_bounds, xmachine_message_intent_list* intent_messages){
+#endif
     
 	// Iterate the list of messages from agents on the target graph element, to count the number of agents there. 
 	unsigned int nextEdgePopulation = 0;
-    xmachine_message_location* current_message = get_first_location_message(location_messages, message_bounds, agent->nextEdge);
+	#if defined(xmachine_message_location_partitioningNone)
+		xmachine_message_location* current_message = get_first_location_message(location_messages);
+	#elif defined(xmachine_message_location_partitioningSpatial)
+		xmachine_message_location* current_message = get_first_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	#elif defined(xmachine_message_location_partitioningGraphEdge)
+	    xmachine_message_location* current_message = get_first_location_message(location_messages, message_bounds, agent->nextEdge);
+	#endif
     while (current_message)
     {
-    	// Increment the counter
-        nextEdgePopulation += 1;
+    	#if !defined(xmachine_message_location_partitioningGraphEdge)
+    		// If not using graph partitioning, check it. 
+    		if(agent->nextEdge == current_message->edge_id){
+    	#endif
+	    	// Increment the counter
+	        nextEdgePopulation += 1;
+        #if !defined(xmachine_message_location_partitioningGraphEdge)
+    		}
+    	#endif
+
         // Get the next message
-        current_message = get_next_location_message(current_message, location_messages, message_bounds);
+        
+        #if defined(xmachine_message_location_partitioningNone)
+			current_message = get_next_location_message(current_message, location_messages);
+		#elif defined(xmachine_message_location_partitioningSpatial)
+			current_message = get_next_location_message(current_message, location_messages, partition_matrix);
+		#elif defined(xmachine_message_location_partitioningGraphEdge)
+		    current_message = get_next_location_message(current_message, location_messages, message_bounds);
+		#endif
     }
     
     // Calculate the remaining capacity of the next edge.
@@ -269,7 +302,13 @@ __FLAME_GPU_FUNC__ int read_locations(xmachine_memory_Agent* agent, xmachine_mes
     agent->hasIntent = edgeTransitionRequired && agent->nextEdgeRemainingCapacity > 0;
 
     if(agent->hasIntent){
-	    add_intent_message(intent_messages, agent->id, agent->nextEdge);
+	    #if defined(xmachine_message_intent_partitioningNone)
+		    add_intent_message(intent_messages, agent->id, agent->nextEdge);
+		#elif defined(xmachine_message_intent_partitioningSpatial)
+		    add_intent_message(intent_messages, agent->id, agent->nextEdge, agent->x, agent->y, agent->z);
+		#elif defined(xmachine_message_intent_partitioningGraphEdge)
+		    add_intent_message(intent_messages, agent->id, agent->nextEdge);
+		#endif
     }
     
     return 0;
@@ -280,22 +319,49 @@ __FLAME_GPU_FUNC__ int read_locations(xmachine_memory_Agent* agent, xmachine_mes
  * Using the list of intent messages determine if the current individual is allowed to change edge. If an edge change occurs, update the edge and calculate a new edge.
  * If the edge being completed is a final edge and the agent is past the edge, it must terminate.
  */
+
+#if defined(xmachine_message_location_partitioningNone)
+__FLAME_GPU_FUNC__ int resolve_intent(xmachine_memory_Agent* agent, xmachine_message_intent_list* intent_messages, RNG_rand48* rand48){
+#elif defined(xmachine_message_location_partitioningSpatial)
+__FLAME_GPU_FUNC__ int resolve_intent(xmachine_memory_Agent* agent, xmachine_message_intent_list* intent_messages, xmachine_message_intent_PBM* partition_matrix, RNG_rand48* rand48){
+#elif defined(xmachine_message_location_partitioningGraphEdge)
 __FLAME_GPU_FUNC__ int resolve_intent(xmachine_memory_Agent* agent, xmachine_message_intent_list* intent_messages, xmachine_message_intent_bounds* message_bounds, RNG_rand48* rand48){
+#endif
 
     // Iterate intent messages for the edge, to determine if the current agent has right of way to move
 	unsigned int nextEdgeIntentCount = 0;
 	unsigned int nextEdgeLowerIdCount = 0;
 	// @future - use time waiting rather than ID / in conjunction with id?
 
-    xmachine_message_intent* current_message = get_first_intent_message(intent_messages, message_bounds, agent->nextEdge);
+
+	#if defined(xmachine_message_intent_partitioningNone)
+        xmachine_message_intent* current_message = get_first_intent_message(intent_messages);
+    #elif defined(xmachine_message_intent_partitioningSpatial)
+        xmachine_message_intent* current_message = get_first_intent_message(intent_messages, partition_matrix, agent->x, agent->y, agent->z);
+    #elif defined(xmachine_message_intent_partitioningGraphEdge)
+        xmachine_message_intent* current_message = get_first_intent_message(intent_messages, message_bounds, agent->nextEdge);
+    #endif
     while (current_message)
     {
-        nextEdgeIntentCount += 1;
-        if(current_message->id < agent->id){
-        	nextEdgeLowerIdCount += 1;
-        }
+    	#if !defined(xmachine_message_intent_partitioningGraphEdge)
+            // If not using graph partitioning, check it. 
+            if(agent->nextEdge == current_message->edge_id){
+        #endif
+	        nextEdgeIntentCount += 1;
+	        if(current_message->id < agent->id){
+	        	nextEdgeLowerIdCount += 1;
+	        }
+        #if !defined(xmachine_message_intent_partitioningGraphEdge)
+            }
+        #endif
         
-        current_message = get_next_intent_message(current_message, intent_messages, message_bounds);
+        #if defined(xmachine_message_location_partitioningNone)
+            current_message = get_next_intent_message(current_message, intent_messages);
+        #elif defined(xmachine_message_intent_partitioningSpatial)
+            current_message = get_next_intent_message(current_message, intent_messages, partition_matrix);
+        #elif defined(xmachine_message_intent_partitioningGraphEdge)
+            current_message = get_next_intent_message(current_message, intent_messages, message_bounds);
+        #endif
     }
     
 

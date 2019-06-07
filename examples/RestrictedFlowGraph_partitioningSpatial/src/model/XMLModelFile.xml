@@ -275,11 +275,29 @@
           <name>position</name>
           <description>The position of the agent along the current edge</description>
         </gpu:variable>
+         <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
+        </gpu:variable>
       </variables>
-      <gpu:partitioningGraphEdge>
-        <gpu:environmentGraph>network</gpu:environmentGraph>
-        <gpu:messageEdgeID>edge_id</gpu:messageEdgeID>
-      </gpu:partitioningGraphEdge>
+      <gpu:partitioningSpatial>
+        <gpu:radius>50.0</gpu:radius>
+        <gpu:xmin>0.0</gpu:xmin>
+        <gpu:xmax>1550.0</gpu:xmax>
+        <gpu:ymin>0.0</gpu:ymin>
+        <gpu:ymax>1550.0</gpu:ymax>
+        <gpu:zmin>0.0</gpu:zmin>
+        <gpu:zmax>50.0</gpu:zmax>
+      </gpu:partitioningSpatial>
+
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
     <gpu:message>
@@ -296,11 +314,28 @@
           <name>edge_id</name>
           <description>The unique ID of the edge within the network graph data structure</description>
         </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
+        </gpu:variable>
       </variables>
-      <gpu:partitioningGraphEdge>
-        <gpu:environmentGraph>network</gpu:environmentGraph>
-        <gpu:messageEdgeID>edge_id</gpu:messageEdgeID>
-      </gpu:partitioningGraphEdge>
+      <gpu:partitioningSpatial>
+        <gpu:radius>50.0</gpu:radius>
+        <gpu:xmin>0.0</gpu:xmin>
+        <gpu:xmax>1550.0</gpu:xmax>
+        <gpu:ymin>0.0</gpu:ymin>
+        <gpu:ymax>1550.0</gpu:ymax>
+        <gpu:zmin>0.0</gpu:zmin>
+        <gpu:zmax>50.0</gpu:zmax>
+      </gpu:partitioningSpatial>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
   </messages>

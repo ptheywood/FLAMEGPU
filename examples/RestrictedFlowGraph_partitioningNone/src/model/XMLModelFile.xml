@@ -276,10 +276,7 @@
           <description>The position of the agent along the current edge</description>
         </gpu:variable>
       </variables>
-      <gpu:partitioningGraphEdge>
-        <gpu:environmentGraph>network</gpu:environmentGraph>
-        <gpu:messageEdgeID>edge_id</gpu:messageEdgeID>
-      </gpu:partitioningGraphEdge>
+      <gpu:partitioningNone/>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
     <gpu:message>
@@ -297,10 +294,7 @@
           <description>The unique ID of the edge within the network graph data structure</description>
         </gpu:variable>
       </variables>
-      <gpu:partitioningGraphEdge>
-        <gpu:environmentGraph>network</gpu:environmentGraph>
-        <gpu:messageEdgeID>edge_id</gpu:messageEdgeID>
-      </gpu:partitioningGraphEdge>
+      <gpu:partitioningNone/>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
   </messages>
