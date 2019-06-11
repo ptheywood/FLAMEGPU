@@ -642,7 +642,23 @@ void initialise(char * inputfile){
 	gpuErrchk( cudaMalloc( (void**) &amp;d_rand48, h_rand48_SoA_size));
 	// calculate strided iteration constants
 	static const unsigned long long a = 0x5DEECE66DLL, c = 0xB;
-	int seed = 123;
+
+<!-- If there is a RAND_SEED environment var, use it to seed the GPU rng seed list (for variance) -->
+<xsl:choose>
+  <xsl:when test="gpu:xmodel/gpu:environment/gpu:constants/gpu:variable[xmml:name='RAND_SEED']">
+    <xsl:for-each select="gpu:xmodel/gpu:environment/gpu:constants/gpu:variable[xmml:name='RAND_SEED']">
+      <xsl:variable name="variable_name" select="xmml:name" />
+      <xsl:variable name="variable_type" select="xmml:type" />
+      <xsl:variable name="type_is_integer"><xsl:call-template name="typeIsInteger"><xsl:with-param name="type" select="$variable_type"/></xsl:call-template></xsl:variable>
+      <xsl:value-of select="$variable_type"/> seed = *get_<xsl:value-of select="$variable_name" />();
+    </xsl:for-each>
+  </xsl:when>
+  <xsl:otherwise>
+    <!-- Otherwise fall the  -->
+  	int seed = 123;
+  </xsl:otherwise>
+</xsl:choose>
+
 	unsigned long long A, C;
 	A = 1LL; C = 0LL;
 	for (unsigned int i = 0; i &lt; buffer_size_MAX; ++i) {
