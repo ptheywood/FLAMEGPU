@@ -1,0 +1,7 @@
+<states>
+	<itno>0</itno>
+    <environment>
+        <A_POP>2</A_POP>
+        <B_POP>1</B_POP>
+    </environment>
+</states>
