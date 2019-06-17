@@ -34,7 +34,7 @@ __FLAME_GPU_HOST_FUNC__ void generateAAgents(){
     	h_AoS[i]->id = generate_A_id();
     }
 
-    h_add_agents_A_outputting(h_AoS, a_count);
+    h_add_agents_A_A(h_AoS, a_count);
     h_free_agent_A_array(&h_AoS, a_count);
 }
 
@@ -53,7 +53,7 @@ __FLAME_GPU_HOST_FUNC__ void generateBAgents(){
     	h_AoS[i]->count = 0;
     }
 
-    h_add_agents_B_inputting(h_AoS, b_count);
+    h_add_agents_B_B(h_AoS, b_count);
     h_free_agent_B_array(&h_AoS, b_count);
 }
 
@@ -70,36 +70,87 @@ __FLAME_GPU_EXIT_FUNC__ void exitFunction(){
 }
 
 
-__FLAME_GPU_FUNC__ int output(xmachine_memory_A* agent, xmachine_message_msg_list* msg_messages){
+__FLAME_GPU_FUNC__ int AOutput(xmachine_memory_A* agent, xmachine_message_A_msg_list* A_msg_messages){
     
     unsigned int tid = threadIdx.x + blockDim.x * blockIdx.x;
-    printf("tid %u. A %u outputting message\n", tid, agent->id);
+    // printf("tid %u. A %u outputting message\n", tid, agent->id);
 
-    add_msg_message(msg_messages, agent->id, tid);
+    add_A_msg_message(A_msg_messages, agent->id, tid);
+
+    if(tid > d_xmachine_memory_A_count){
+
+        printf("tid %u (> %u) id %u outputting (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
+    }
+
     
     return 0;
 }
 
-__FLAME_GPU_FUNC__ int input(xmachine_memory_B* agent, xmachine_message_msg_list* msg_messages){
+__FLAME_GPU_FUNC__ int AInput(xmachine_memory_A* agent, xmachine_message_B_msg_list* B_msg_messages){
     unsigned int tid = threadIdx.x + blockDim.x * blockIdx.x;
     unsigned int count = 0;
-    xmachine_message_msg* current_message = get_first_msg_message(msg_messages);
+    xmachine_message_B_msg* current_message = get_first_B_msg_message(B_msg_messages);
+    while (current_message)
+    {
+        count += 1;
+        
+        // if (tid < 16) {
+        //     printf("Tid %u: B %u received from %u, %u \n", tid, agent->id, current_message->id, current_message->tid);
+        // }
+
+        if(agent->id ==0 && current_message->id == 0){
+            printf("message from %u, tid %u\n", current_message->id, current_message->tid);
+        }
+
+        current_message = get_next_B_msg_message(current_message, B_msg_messages);
+    }
+
+    // if (tid < 16) {
+    //     printf("idd %u: A %u received %u messages \n", tid, agent->id, count);
+    // }
+    
+    
+    if(tid > d_xmachine_memory_A_count){
+        printf("tid %u (> %u) id %u executing (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
+    }
+
+    return 0;
+}
+
+__FLAME_GPU_FUNC__ int BInputOutput(xmachine_memory_B* agent, xmachine_message_A_msg_list* A_msg_messages, xmachine_message_B_msg_list* B_msg_messages){
+    unsigned int tid = threadIdx.x + blockDim.x * blockIdx.x;
+    unsigned int count = 0;
+
+    // Aggregate some information from the messages
+
+    xmachine_message_A_msg* current_message = get_first_A_msg_message(A_msg_messages);
     while (current_message)
     {
         count += 1;
         	
-        if (tid < 16) {
-        	printf("Tid %u: B %u received from %u, %u \n", tid, agent->id, current_message->id, current_message->threadId);
-        }
+        // if (tid < 16) {
+        // 	printf("Tid %u: B %u received from %u, %u \n", tid, agent->id, current_message->id, current_message->tid);
+        // }
 
-        current_message = get_next_msg_message(current_message, msg_messages);
+        current_message = get_next_A_msg_message(current_message, A_msg_messages);
     }
 
     agent->count = count;
 
-    if (tid < 16) {
-    	printf("idd %u: B %u received %u messages \n", tid, agent->id, agent->count);
+    // Output a new message, based on the aggregate.
+    if(tid > d_xmachine_memory_B_count){
+        printf("tid %u (> %u) id %u outputting (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
     }
+    if(agent->count > 0){
+        // printf("B %u outputting message, tid %u\n", agent->id, tid);
+        add_B_msg_message(B_msg_messages, agent->id, tid, agent->count);
+    }
+
+    // if the thread id is for an invalid agent - we have a problem. 
+
+    // if (tid < 32) {
+    // 	printf("idd %u: B %u received %u messages \n", tid, agent->id, agent->count);
+    // }
     
     
     return 0;

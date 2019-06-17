@@ -39,24 +39,36 @@
       </memory>
       <functions>
         <gpu:function>
-          <name>output</name>
-          <currentState>outputting</currentState>
-          <nextState>outputting</nextState>
+          <name>AOutput</name>
+          <currentState>A</currentState>
+          <nextState>A</nextState>
           <outputs>
             <gpu:output>
-              <messageName>msg</messageName>
-              <gpu:type>optional_message</gpu:type>
+              <messageName>A_msg</messageName>
+              <gpu:type>single_message</gpu:type>
             </gpu:output>
           </outputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <gpu:function>
+          <name>AInput</name>
+          <currentState>A</currentState>
+          <nextState>A</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>B_msg</messageName>
+            </gpu:input>
+          </inputs>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
       </functions>
       <states>
         <gpu:state>
-          <name>outputting</name>
+          <name>A</name>
         </gpu:state>
-        <initialState>outputting</initialState>
+        <initialState>A</initialState>
       </states>
       <gpu:type>continuous</gpu:type>
       <gpu:bufferSize>256</gpu:bufferSize>
@@ -77,23 +89,29 @@
       </memory>
       <functions>
         <gpu:function>
-          <name>input</name>
-          <currentState>inputting</currentState>
-          <nextState>inputting</nextState>
+          <name>BInputOutput</name>
+          <currentState>B</currentState>
+          <nextState>B</nextState>
           <inputs>
             <gpu:input>
-              <messageName>msg</messageName>
+              <messageName>A_msg</messageName>
             </gpu:input>
           </inputs>
+          <outputs>
+            <gpu:output>
+              <messageName>B_msg</messageName>
+              <gpu:type>optional_message</gpu:type>
+            </gpu:output>
+          </outputs>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
       </functions>
       <states>
         <gpu:state>
-          <name>inputting</name>
+          <name>B</name>
         </gpu:state>
-        <initialState>inputting</initialState>
+        <initialState>B</initialState>
       </states>
       <gpu:type>continuous</gpu:type>
       <gpu:bufferSize>256</gpu:bufferSize>
@@ -101,7 +119,7 @@
   </xagents>
   <messages>
     <gpu:message>
-      <name>msg</name>
+      <name>A_msg</name>
       <variables>
         <gpu:variable>
           <type>unsigned int</type>
@@ -109,7 +127,26 @@
         </gpu:variable>
         <gpu:variable>
           <type>unsigned int</type>
-          <name>threadId</name>
+          <name>tid</name>
+        </gpu:variable>
+      </variables>
+      <gpu:partitioningNone></gpu:partitioningNone>
+      <gpu:bufferSize>256</gpu:bufferSize>
+    </gpu:message>
+    <gpu:message>
+      <name>B_msg</name>
+      <variables>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>tid</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>count</name>
         </gpu:variable>
       </variables>
       <gpu:partitioningNone></gpu:partitioningNone>
@@ -119,10 +156,13 @@
   <layers>
     <layer>
       <gpu:layerFunction>
-        <name>output</name>
+        <name>AOutput</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <name>input</name>
+        <name>BInputOutput</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>AInput</name>
       </gpu:layerFunction>
     </layer>
   </layers>
