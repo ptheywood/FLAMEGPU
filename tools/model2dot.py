@@ -7,6 +7,7 @@
 
 # @todo - better exceptions.
 # @todo - remove UISS specialisation to merge back.
+# @todo - probably better to build a graph structure in python, then traverse it to produce the graphviz? 
 
 import argparse
 import sys
@@ -15,6 +16,7 @@ import os
 import xml.etree.ElementTree as ET
 
 import graphviz
+
 
 # Dictionary of the expected XML namespaces, making search easier
 NAMESPACES = {
@@ -46,6 +48,26 @@ def parse_arguments():
     "--render",
     action="store_true",
     help="Render the graphviz dotfile"
+    )
+  parser.add_argument(
+    "--init-functions",
+    action="store_true",
+    help="render init functions"
+    )
+  parser.add_argument(
+    "--step-functions",
+    action="store_true",
+    help="render step functions"
+    )
+  parser.add_argument(
+    "--exit-functions",
+    action="store_true",
+    help="render exit functions"
+    )
+  parser.add_argument(
+    "--all",
+    action="store_true",
+    help="include everything"
     )
   parser.add_argument(
     "-f",
@@ -87,6 +109,13 @@ def validate_arguments(args):
       elif os.path.isdir(args.output):
         raise ValueError("Output path {:} is a directory.".format(args.output))
 
+
+def render_init_functions(args):
+  return args.init_functions or args.all
+def render_step_functions(args):
+  return args.step_functions or args.all
+def render_exit_functions(args):
+  return args.exit_functions or args.all
 
 def load_xmlmodelfile(args):
   verbose_log(args, "Loading XML Model File")
@@ -148,16 +177,47 @@ def get_agent_functions(args, xmlroot):
     for function in xagent.findall('xmml:functions/gpu:function', NAMESPACES):
       function_name = function.find('xmml:name', NAMESPACES)
       if function_name is not None and xagent_name is not None:
+        currentState = function.find('xmml:currentState', NAMESPACES)
+        nextState = function.find('xmml:nextState', NAMESPACES)
+        data[function_name.text] = {
+          "agent": xagent_name.text,
+          "currentState": currentState.text,
+          "nextState": nextState.text,
+          "inputs": [],
+          "outputs": [],
+        }
+        # inputs
+        for msg in function.findall('xmml:inputs/gpu:input', NAMESPACES):
+          msg_name = msg.find('xmml:messageName', NAMESPACES)
+          data[function_name.text]["inputs"].append({
+            "name": msg_name.text,
+          })
+        # outputs
+        for msg in function.findall('xmml:outputs/gpu:output', NAMESPACES):
+          msg_name = msg.find('xmml:messageName', NAMESPACES)
+          msg_type = msg.find('gpu:type', NAMESPACES)
+          data[function_name.text]["outputs"].append({
+            "name": msg_name.text,
+            "type": msg_type.text,
+          })
+
+  return data
+
+def get_agent_states(args, xmlroot):
+  data = {}
+  for xagent in xmlroot.findall('xmml:xagents/gpu:xagent', NAMESPACES):
+    xagent_name = xagent.find('xmml:name', NAMESPACES)
+    for state in xagent.findall('xmml:states/gpu:state', NAMESPACES):
+      state_name = state.find('xmml:name', NAMESPACES)
+      if state_name is not None and xagent_name is not None:
         if xagent_name.text not in data:
-          data[xagent_name.text] = {}
-        data[xagent_name.text][function_name.text] = {}
+          data[xagent_name.text] = []
+        data[xagent_name.text].append(state_name.text)
   return data
 
 def get_message_names(args, xmlroot):
   pass
 
-def get_agent_states(args, xmlroot):
-  pass
 
 
 def get_function_layers(args, xmlroot):
@@ -191,6 +251,7 @@ def generate_graphviz(args, xml):
   agent_names = get_agent_names(args, xmlroot)
   agent_functions = get_agent_functions(args, xmlroot)
   function_layers = get_function_layers(args, xmlroot)
+  agent_states = get_agent_states(args, xmlroot)
   
   # print(init_functions)
   # print(step_functions)
@@ -207,6 +268,7 @@ def generate_graphviz(args, xml):
   dot.body.append("\tcompound=true;")
   dot.body.append("\tsplines=ortho;")
   dot.body.append("\trankdir=ortho;")
+  dot.body.append("\tordering=out;")
   dot.body.append("\tSTART [style=invisible];");
   dot.body.append("\tMID [style=invisible];");
   dot.body.append("\tEND [style=invisible];");
@@ -218,7 +280,7 @@ def generate_graphviz(args, xml):
 
   # If there are any init functions, add a subgraph.
   # if init_functions and len(init_functions) > 0:
-  if True:
+  if render_init_functions(args):
     ifg = graphviz.Digraph(
       name="cluster_initFunctions", 
     )
@@ -247,7 +309,7 @@ def generate_graphviz(args, xml):
 
   # If there are any step functions, add a subgraph.
   # if step_functions and len(step_functions) > 0:
-  if True:
+  if render_step_functions(args):
     sfg = graphviz.Digraph(
       name="cluster_stepFunctions", 
     )
@@ -272,7 +334,7 @@ def generate_graphviz(args, xml):
 
   # If there are any exit functions, add a subgraph.
   # if exit_functions and len(exit_functions) > 0:
-  if True:
+  if render_exit_functions(args):
     efg = graphviz.Digraph(
       name="cluster_exitFunctions", 
     )
@@ -309,61 +371,216 @@ def generate_graphviz(args, xml):
 
 
 
-  # For each function layer
+
+  layer_count = len(function_layers)
+  # print("{:} layers".format(layer_count))
+
+
+  # Create a dict of one subgraph per agent
+  # For each agent
+  agent_subgraphs = {}
+  agent_state_connections = {}
+
+  message_info = {}
+
+  for agent_name in agent_names:
+    agent_subgraphs[agent_name] = graphviz.Digraph(
+      name="cluster_agent_{:}".format(agent_name)
+    )
+    agent_subgraphs[agent_name].attr(label=agent_name)
+    # Also create a data structure to show if a state/function is used or not. 
+    agent_state_connections[agent_name] = {}
+
+
+    # Add each state once per layer + 1
+    for state in agent_states[agent_name]:
+      agent_state_connections[agent_name][state] = [False]* layer_count
+      for i in range(layer_count + 1):
+        state_id = "{:}_{:}".format(state, i)
+        agent_subgraphs[agent_name].node(state_id, label=state, color="#aaaaaa", fontcolor="#aaaaaa")
+
+
+  # For each function in each layer
+
   for layerIndex, function_layer in enumerate(function_layers):
+    for col, function_name in enumerate(function_layer):
+      # get the function data
+      function_obj = agent_functions[function_name]
+      # Get the agent data
+      agent_name = function_obj["agent"]
+      state_before = "{:}_{:}".format(function_obj["currentState"], layerIndex)
+      state_after = "{:}_{:}".format(function_obj["nextState"], layerIndex + 1)
+      # print("{:}->{:}, {:}:{:}, {:}=>{:}".format(agent_name, function_name, layerIndex, col,state_before, state_after))
 
-    lfg = graphviz.Digraph(
-      name="cluster_layer_{:}".format(layerIndex)
-    )
-    lfg.attr(label="Layer {:}".format(layerIndex))
-    lfg.attr(color="pink") # @todo rotate colours
-    lfg.attr(penwidth="3")
-    lfg.attr(rank="same")
-
-    lfg.node("invisble_layer_{:}".format(layerIndex), shape="point", style="invis")
-
-    for col, function in enumerate(function_layer):
-      print(function)
-      lfg.node(
-        function,
+      # Add a node for the function.
+      agent_subgraphs[agent_name].node(
+        function_name,
         shape="box",
-        group=str(col),
+        rank=str(layerIndex)
       )
-    afg.subgraph(lfg)
 
-  for i in range(1, len(function_layers)):
-    afg.edge(
-      "invisble_layer_{:}".format(i-1),
-      "invisble_layer_{:}".format(i),
-      ltail="cluster_layer_{:}".format(i-1),
-      lhead="cluster_layer_{:}".format(i),
+
+      # Mark off the connection if staying int eh same state
+      if function_obj["currentState"] == function_obj["nextState"]:
+        agent_state_connections[agent_name][function_obj["currentState"]][layerIndex] = True
+
+      # Add a link between the state_before and the function node, 
+      agent_subgraphs[agent_name].edge(state_before, function_name)
+      # And a link from the function node to teh after state.
+      agent_subgraphs[agent_name].edge(function_name, state_after)
+
+
+      # Store message related information in a global list for later insertion.
+      if function_obj["inputs"]:
+        for msg_input in function_obj["inputs"]:
+          msg_name = msg_input["name"]
+          if msg_name not in message_info:
+            message_info[msg_name] = {
+              "output_by": [],
+              "input_by": [],
+            }
+          message_info[msg_name]["input_by"].append({
+            "agent": agent_name,
+            "function": function_name,
+            "layer": layerIndex,
+          })
+
+      if function_obj["outputs"]:
+        for msg_output in function_obj["outputs"]:
+          msg_name = msg_output["name"]
+          if msg_name not in message_info:
+            message_info[msg_name] = {
+              "output_by": [],
+              "input_by": [],
+            }
+          message_info[msg_name]["output_by"].append({
+            "agent": agent_name,
+            "function": function_name,
+            "layer": layerIndex,
+          })
+
+
+
+
+
+  # Add missing links
+  for agent_name in agent_names:
+    for state in agent_states[agent_name]:
+      for startLayer, connected in enumerate(agent_state_connections[agent_name][state]):
+        if not connected:
+          state_before = "{:}_{:}".format(state, startLayer)
+          state_after = "{:}_{:}".format(state, startLayer+1)
+          
+          # Add the edge
+          agent_subgraphs[agent_name].edge(state_before, state_after)
+
+          # Add an invisible node to get vertical alignment across agents
+          invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
+          agent_subgraphs[agent_name].node(invisible_node_key, shape="point", label='', style="invis")
+          # And invisible edges.
+          agent_subgraphs[agent_name].edge(state_before, invisible_node_key, color="lightgrey")#, style="invis")
+          agent_subgraphs[agent_name].edge(invisible_node_key, state_after, color="lightgrey")#, style="invis")
+
+
+          # Mark as done
+          agent_state_connections[agent_name][state][startLayer] = True
+
+
+
+  # Add each agent_subgraph to the agent functions subgraph.
+  for agent_subgraph in agent_subgraphs.values():
+    afg.subgraph(agent_subgraph)
+
+   # try adding an invisble link between all 0 states, as a weird hack to get vertical alignment?
+
+  # heirarchys are annyoing...
+  # flat_states = [item for agent, sublist in agent_states.items() for item in sublist]
+  sg = graphviz.Digraph("state_alignment")
+  sg.attr(rank="same")
+  ordered_state_invis_nodes = []
+  for agent_name in agent_names:
+    for state in agent_states[agent_name]:
+      key = "{:}_-1".format(state)
+      zero = "{:}_0".format(state)
+      sg.node(key, shape="point",color="lightgrey", rank="same")#, style="invis")
+      sg.edge(key, zero, color="lightgrey")#, style="invis")
+      ordered_state_invis_nodes.append(key)
+
+  for a, b in zip(ordered_state_invis_nodes, ordered_state_invis_nodes[1:]):
+    # Add an invisble edge.
+    sg.edge(a, b, color="lightgrey")#, style="invis")
+
+  afg.subgraph(sg)
+
+  # Add messages nodes
+  for message_name in message_info:
+    message_node_key = "message_{:}".format(message_name)
+    afg.node(
+      message_node_key, 
+      label=message_name,
+      # shape="diamond",
+      shape="box",
+      fontcolor="green4",
+      color="green4",
+      penwidth="3",
     )
-    print(i-1, i)
 
+    # Add message edges.
+    # out
+    for output_by in message_info[message_name]["output_by"]:
+      function_key = "{:}".format(output_by["function"])
+
+      afg.edge(
+        function_key,
+        message_node_key,
+        color="green4",
+        penwidth="3",
+      )
+
+    # in
+    for input_by in message_info[message_name]["input_by"]:
+      function_key = "{:}".format(input_by["function"])
+
+      afg.edge(
+        message_node_key,
+        function_key,
+        color="green4",
+        penwidth="3",
+      )
 
 
   dot.subgraph(afg)
 
 
   # Connect the clusters.
-  dot.edge(
-    "invisible_initFunctions",
-    "invisible_stepFunctions", 
-    ltail="cluster_initFunctions", 
-    lhead="cluster_stepFunctions"
-  )
-  dot.edge(
-    "invisible_stepFunctions",
-    "invisible_agentFunctions", 
-    ltail="cluster_stepFunctions", 
-    lhead="cluster_agentFunctions"
-  )
-  dot.edge(
-    "invisible_agentFunctions",
-    "invisible_exitFunctions", 
-    ltail="cluster_agentFunctions", 
-    lhead="cluster_exitFunctions"
-  )
+  if render_init_functions(args) and render_step_functions(args):
+    dot.edge(
+      "invisible_initFunctions",
+      "invisible_stepFunctions", 
+      ltail="cluster_initFunctions", 
+      lhead="cluster_stepFunctions"
+    )
+  if render_init_functions(args) and not render_step_functions(args):
+    dot.edge(
+      "invisible_initFunctions",
+      "invisible_agentFunctions", 
+      ltail="cluster_initFunctions", 
+      lhead="cluster_agentFunctions"
+    )
+  if render_step_functions(args):
+    dot.edge(
+      "invisible_stepFunctions",
+      "invisible_agentFunctions", 
+      ltail="cluster_stepFunctions", 
+      lhead="cluster_agentFunctions"
+    )
+  if render_exit_functions(args):
+    dot.edge(
+      "invisible_agentFunctions",
+      "invisible_exitFunctions", 
+      ltail="cluster_agentFunctions", 
+      lhead="cluster_exitFunctions"
+    )
 
   # Finally fix some ranks.
 
