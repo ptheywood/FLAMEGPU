@@ -203,22 +203,171 @@ def generate_graphviz(args, xml):
 
 
   # Add some global settings.
-  # file.write("  newrank=true;\ncompound=true; \n splines=ortho;\n")
-  # file.write("  START [style=invisible];\n");
-  # file.write("  MID [style=invisible];\n");
-  # file.write("  END [style=invisible];\n");
+  dot.body.append("\tnewrank=true;")
+  dot.body.append("\tcompound=true;")
+  dot.body.append("\tsplines=ortho;")
+  dot.body.append("\trankdir=ortho;")
+  dot.body.append("\tSTART [style=invisible];");
+  dot.body.append("\tMID [style=invisible];");
+  dot.body.append("\tEND [style=invisible];");
+
+
 
 
   # Populate the digraph.
-  # @todo
+
+  # If there are any init functions, add a subgraph.
+  # if init_functions and len(init_functions) > 0:
+  if True:
+    ifg = graphviz.Digraph(
+      name="cluster_initFunctions", 
+    )
+    ifg.attr(label="initFunctions")
+    ifg.attr(color="blue")
+    ifg.attr(penwidth="3")
+
+    # Add node per func
+    for func in init_functions:
+      ifg.node(func, shape="box")
+      # @todo edges.
+
+    # Add edge between subsequent nodes, if needed.
+    if len(init_functions) > 1:
+      for a, b in zip(init_functions, init_functions[1:]):
+        ifg.edge(a, b)
+
+    # Add an invisible node.
+    ifg.node("invisible_initFunctions", shape="point", style="invis")
+
+    # Add to the main graph
+    dot.subgraph(ifg)
+
+
+
+
+  # If there are any step functions, add a subgraph.
+  # if step_functions and len(step_functions) > 0:
+  if True:
+    sfg = graphviz.Digraph(
+      name="cluster_stepFunctions", 
+    )
+    sfg.attr(label="stepFunctions")
+    sfg.attr(color="brown")
+    sfg.attr(penwidth="3")
+
+    for func in step_functions:
+      sfg.node(func, shape="box")
+    
+    # Add edge between subsequent nodes, if needed.
+    if len(step_functions) > 1:
+      for a, b in zip(step_functions, step_functions[1:]):
+        sfg.edge(a, b)
+
+    sfg.node("invisible_stepFunctions", shape="point", style="invis")
+
+    # Add to the main graph
+    dot.subgraph(sfg)
+
+
+
+  # If there are any exit functions, add a subgraph.
+  # if exit_functions and len(exit_functions) > 0:
+  if True:
+    efg = graphviz.Digraph(
+      name="cluster_exitFunctions", 
+    )
+    efg.attr(label="exitFunctions")
+    efg.attr(color="red")
+    efg.attr(penwidth="3")
+
+    for func in exit_functions:
+      efg.node(func, label=func, shape="box")
+    
+    # Add edge between subsequent nodes, if needed.
+    if len(exit_functions) > 1:
+      for a, b in zip(exit_functions, exit_functions[1:]):
+        efg.edge(a, b)
+
+    efg.node("invisible_exitFunctions", shape="point", style="invis")
+
+
+    # Add to the main graph
+    dot.subgraph(efg)
+
+
+
+  # Create a subgraph for the agent functions.
+  afg= graphviz.Digraph(
+    name="cluster_agentFunctions"
+  )
+  afg.attr(label="Function Layers")
+  afg.attr(color="cyan")
+  afg.attr(penwidth="3")
+  afg.attr(rankdir="RL")
+
+  afg.node("invisible_agentFunctions", shape="point", style="invis")
 
 
 
   # For each function layer
   for layerIndex, function_layer in enumerate(function_layers):
-    print("{:}:".format(layerIndex))
-    for function in function_layer:
-      print("  " + function)
+
+    lfg = graphviz.Digraph(
+      name="cluster_layer_{:}".format(layerIndex)
+    )
+    lfg.attr(label="Layer {:}".format(layerIndex))
+    lfg.attr(color="pink") # @todo rotate colours
+    lfg.attr(penwidth="3")
+    lfg.attr(rank="same")
+
+    lfg.node("invisble_layer_{:}".format(layerIndex), shape="point", style="invis")
+
+    for col, function in enumerate(function_layer):
+      print(function)
+      lfg.node(
+        function,
+        shape="box",
+        group=str(col),
+      )
+    afg.subgraph(lfg)
+
+  for i in range(1, len(function_layers)):
+    afg.edge(
+      "invisble_layer_{:}".format(i-1),
+      "invisble_layer_{:}".format(i),
+      ltail="cluster_layer_{:}".format(i-1),
+      lhead="cluster_layer_{:}".format(i),
+    )
+    print(i-1, i)
+
+
+
+  dot.subgraph(afg)
+
+
+  # Connect the clusters.
+  dot.edge(
+    "invisible_initFunctions",
+    "invisible_stepFunctions", 
+    ltail="cluster_initFunctions", 
+    lhead="cluster_stepFunctions"
+  )
+  dot.edge(
+    "invisible_stepFunctions",
+    "invisible_agentFunctions", 
+    ltail="cluster_stepFunctions", 
+    lhead="cluster_agentFunctions"
+  )
+  dot.edge(
+    "invisible_agentFunctions",
+    "invisible_exitFunctions", 
+    ltail="cluster_agentFunctions", 
+    lhead="cluster_exitFunctions"
+  )
+
+  # Finally fix some ranks.
+
+  # dot.attr(rank="same")
 
   return dot
 
