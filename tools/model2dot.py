@@ -8,6 +8,18 @@
 # @todo - better exceptions.
 # @todo - remove UISS specialisation to merge back.
 # @todo - probably better to build a graph structure in python, then traverse it to produce the graphviz? 
+# @todo - tidy
+# @todo - group for vertical alignment. Keratinocyte is an example. Should use the same group as the ancestor state, unless there are 2 childs of that state.
+# @todo - order is right to left not left to right?
+# @todo - conditions
+# @todo - death
+# @todo - agent creation
+# @todo - hostLauyer functions
+# @todo - skip linear state relationships (when no conditionals)
+# @todo - handle terminating paths. I.e. Keratinocyte migrate? / resolve, where currenlty a real-link is drawn even though it is not necesary. I.e. resolve state all immediately feeds through output_location into default
+# @todo - fix wiggles
+# @todo - stable marriage as good example of conditional.
+
 
 import argparse
 import sys
@@ -16,6 +28,28 @@ import os
 import xml.etree.ElementTree as ET
 
 import graphviz
+
+DEBUG_COLORS = False
+
+
+MESSAGE_COLOR = "green4"
+MESSAGE_SHAPE = "box"
+
+FUNCTION_COLOR = "black"
+FUNCTION_SHAPE = "box"
+
+
+STATE_COLOR = "#aaaaaa"
+STATE_SHAPE = "circle"
+
+
+HIDDEN_COLOR = "#ffffff"
+HIDDEN_STYLE = "invis"
+HIDDEN_SHAPE = "point"
+
+if DEBUG_COLORS:
+  HIDDEN_COLOR = "#dddddd"
+  HIDDEN_STYLE = None
 
 
 # Dictionary of the expected XML namespaces, making search easier
@@ -269,9 +303,9 @@ def generate_graphviz(args, xml):
   dot.body.append("\tsplines=ortho;")
   dot.body.append("\trankdir=ortho;")
   dot.body.append("\tordering=out;")
-  dot.body.append("\tSTART [style=invisible];");
-  dot.body.append("\tMID [style=invisible];");
-  dot.body.append("\tEND [style=invisible];");
+  # dot.body.append("\tSTART [style=invisible];");
+  # dot.body.append("\tMID [style=invisible];");
+  # dot.body.append("\tEND [style=invisible];");
 
 
 
@@ -290,7 +324,7 @@ def generate_graphviz(args, xml):
 
     # Add node per func
     for func in init_functions:
-      ifg.node(func, shape="box")
+      ifg.node(func, shape=FUNCTION_SHAPE)
       # @todo edges.
 
     # Add edge between subsequent nodes, if needed.
@@ -318,7 +352,7 @@ def generate_graphviz(args, xml):
     sfg.attr(penwidth="3")
 
     for func in step_functions:
-      sfg.node(func, shape="box")
+      sfg.node(func, shape=FUNCTION_SHAPE)
     
     # Add edge between subsequent nodes, if needed.
     if len(step_functions) > 1:
@@ -343,7 +377,7 @@ def generate_graphviz(args, xml):
     efg.attr(penwidth="3")
 
     for func in exit_functions:
-      efg.node(func, label=func, shape="box")
+      efg.node(func, label=func, shape=FUNCTION_SHAPE)
     
     # Add edge between subsequent nodes, if needed.
     if len(exit_functions) > 1:
@@ -415,7 +449,7 @@ def generate_graphviz(args, xml):
       # Add a node for the function.
       agent_subgraphs[agent_name].node(
         function_name,
-        shape="box",
+        shape=FUNCTION_SHAPE,
         rank=str(layerIndex)
       )
 
@@ -476,10 +510,10 @@ def generate_graphviz(args, xml):
 
           # Add an invisible node to get vertical alignment across agents
           invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
-          agent_subgraphs[agent_name].node(invisible_node_key, shape="point", label='', style="invis")
+          agent_subgraphs[agent_name].node(invisible_node_key, shape=HIDDEN_SHAPE, label='', style=HIDDEN_STYLE)
           # And invisible edges.
-          agent_subgraphs[agent_name].edge(state_before, invisible_node_key, color="lightgrey")#, style="invis")
-          agent_subgraphs[agent_name].edge(invisible_node_key, state_after, color="lightgrey")#, style="invis")
+          agent_subgraphs[agent_name].edge(state_before, invisible_node_key, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
+          agent_subgraphs[agent_name].edge(invisible_node_key, state_after, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
 
 
           # Mark as done
@@ -502,13 +536,13 @@ def generate_graphviz(args, xml):
     for state in agent_states[agent_name]:
       key = "{:}_-1".format(state)
       zero = "{:}_0".format(state)
-      sg.node(key, shape="point",color="lightgrey", rank="same")#, style="invis")
-      sg.edge(key, zero, color="lightgrey")#, style="invis")
+      sg.node(key, shape="point",color=HIDDEN_COLOR, rank="same", style=HIDDEN_STYLE)
+      sg.edge(key, zero, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
       ordered_state_invis_nodes.append(key)
 
   for a, b in zip(ordered_state_invis_nodes, ordered_state_invis_nodes[1:]):
     # Add an invisble edge.
-    sg.edge(a, b, color="lightgrey")#, style="invis")
+    sg.edge(a, b, color=HIDDEN_STYLE, style=HIDDEN_STYLE)
 
   afg.subgraph(sg)
 
@@ -518,10 +552,9 @@ def generate_graphviz(args, xml):
     afg.node(
       message_node_key, 
       label=message_name,
-      # shape="diamond",
-      shape="box",
-      fontcolor="green4",
-      color="green4",
+      shape=MESSAGE_SHAPE,
+      fontcolor=MESSAGE_COLOR,
+      color=MESSAGE_COLOR,
       penwidth="3",
     )
 
@@ -533,7 +566,7 @@ def generate_graphviz(args, xml):
       afg.edge(
         function_key,
         message_node_key,
-        color="green4",
+        color=MESSAGE_COLOR,
         penwidth="3",
       )
 
@@ -544,7 +577,7 @@ def generate_graphviz(args, xml):
       afg.edge(
         message_node_key,
         function_key,
-        color="green4",
+        color=MESSAGE_COLOR,
         penwidth="3",
       )
 
