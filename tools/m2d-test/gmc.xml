@@ -1,0 +1,630 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gpu:xmodel xmlns:gpu="http://www.dcs.shef.ac.uk/~paul/XMMLGPU" xmlns="http://www.dcs.shef.ac.uk/~paul/XMML">
+  
+  <name>bAgInteraction-montecarlo</name>
+
+  <gpu:environment> 
+    <gpu:constants>
+        <gpu:variable>
+          <type>unsigned long long int</type>
+          <name>SEED</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>LATTICE_WIDTH</name>
+          <defaultValue>1</defaultValue>
+        </gpu:variable>
+
+        <gpu:variable>
+          <type>float</type>
+          <name>MACRO_TIMESTEP</name>
+          <defaultValue>5.0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>SIMULATION_LENGTH</name>
+          <defaultValue>10.0</defaultValue>
+        </gpu:variable>
+
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>INIT_POP_BCELLS</name>
+          <defaultValue>1</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>INIT_POP_ANTIGENS</name>
+          <defaultValue>1</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>NUM_ANTIGEN_TYPES</name>
+          <defaultValue>1</defaultValue>
+        </gpu:variable>
+
+
+        <gpu:variable>
+          <type>float</type>
+          <name>GLOBAL_INTERACTION_PROBABILITY</name>
+          <defaultValue>0.5</defaultValue>
+        </gpu:variable>
+
+    </gpu:constants>
+    <gpu:functionFiles>
+      <file>functions.c</file>
+    </gpu:functionFiles>
+
+    <gpu:initFunctions>
+      <gpu:initFunction>
+        <gpu:name>generatePopulations</gpu:name>
+      </gpu:initFunction>
+      <gpu:initFunction>
+        <gpu:name>initTwo</gpu:name>
+      </gpu:initFunction>
+    </gpu:initFunctions>
+
+    <gpu:exitFunctions>
+      <gpu:exitFunction>
+        <gpu:name>outputStatistics</gpu:name>
+      </gpu:exitFunction>
+      <gpu:exitFunction>
+        <gpu:name>exitTwo</gpu:name>
+      </gpu:exitFunction>
+    </gpu:exitFunctions>
+
+    <gpu:stepFunctions>
+      <gpu:stepFunction>
+        <gpu:name>step_one</gpu:name>
+      </gpu:stepFunction>
+      <gpu:stepFunction>
+        <gpu:name>step_two</gpu:name>
+      </gpu:stepFunction>
+    </gpu:stepFunctions>
+
+    <gpu:hostLayerFunctions>
+      <gpu:hostLayerFunction>
+        <gpu:name>hl_inject</gpu:name>
+      </gpu:hostLayerFunction>
+      <gpu:hostLayerFunction>
+        <gpu:name>hl_compute</gpu:name>
+      </gpu:hostLayerFunction>
+      <gpu:hostLayerFunction>
+        <gpu:name>hl_interactions</gpu:name>
+      </gpu:hostLayerFunction>
+    </gpu:hostLayerFunctions>
+
+  </gpu:environment>
+
+  <xagents>
+    <gpu:xagent>
+      <name>bcell</name>
+      <memory>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lattice_site</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>interactionCount</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>rank</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lowerRankCount</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+
+        <gpu:variable>
+          <type>int</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>z</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colour</name>
+        </gpu:variable>
+      </memory>
+      <functions>
+        <gpu:function>
+          <name>bcell_generate_rank_and_output</name>
+          <currentState>bcell_default</currentState>
+          <nextState>bcell_default</nextState>
+          <outputs>
+            <gpu:output>
+              <messageName>bcell_rank_message</messageName>
+              <gpu:type>single_message</gpu:type>
+            </gpu:output>
+          </outputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>bcell_count_lower_bcells_and_broadcast</name>
+          <currentState>bcell_default</currentState>
+          <nextState>bcell_default</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>bcell_rank_message</messageName>
+            </gpu:input>
+          </inputs>
+          <outputs>
+            <gpu:output>
+              <messageName>bcell_lower_count_message</messageName>
+              <gpu:type>single_message</gpu:type>
+            </gpu:output>
+          </outputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>bcell_match_lower_antigen</name>
+          <currentState>bcell_default</currentState>
+          <nextState>bcell_default</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>antigen_lower_count_message</messageName>
+            </gpu:input>
+          </inputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+
+        <gpu:function>
+          <name>bcell_die</name>
+          <currentState>bcell_default</currentState>
+          <nextState>bcell_default</nextState>
+          <gpu:reallocate>true</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>bcell_create</name>
+          <currentState>bcell_default</currentState>
+          <nextState>bcell_default</nextState>
+          <xagentOutputs>
+            <gpu:xagentOutput>
+              <xagentName>bcell</xagentName>
+              <state>bcell_default</state>
+            </gpu:xagentOutput>
+          </xagentOutputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+      </functions>
+      <states>
+        <gpu:state>
+          <name>bcell_default</name>
+        </gpu:state>
+        <initialState>bcell_default</initialState>
+      </states>
+      <gpu:type>continuous</gpu:type>
+      <gpu:bufferSize>65536</gpu:bufferSize>
+    </gpu:xagent>
+
+
+    <gpu:xagent>
+      <name>antigen</name>
+      <memory>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>antigenType</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lattice_site</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>interactionCount</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>rank</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lowerRankCount</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+
+        <gpu:variable>
+          <type>int</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>z</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colour</name>
+        </gpu:variable>
+      </memory>
+      <functions>
+        <gpu:function>
+          <name>antigen_generate_rank_and_output</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <outputs>
+            <gpu:output>
+              <messageName>antigen_rank_message</messageName>
+              <gpu:type>optional_message</gpu:type>
+            </gpu:output>
+          </outputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>antigen_count_lower_antigens_and_broadcast</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>antigen_rank_message</messageName>
+            </gpu:input>
+          </inputs>
+          <outputs>
+            <gpu:output>
+              <messageName>antigen_lower_count_message</messageName>
+              <gpu:type>single_message</gpu:type>
+            </gpu:output>
+          </outputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>antigen_match_lower_bcell</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>bcell_lower_count_message</messageName>
+            </gpu:input>
+          </inputs>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>to_switch</name>
+          <currentState>default</currentState>
+          <nextState>switch</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>from_switch</name>
+          <currentState>switch</currentState>
+          <nextState>default</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>e2s</name>
+          <currentState>extra</currentState>
+          <nextState>switch</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>globalConditionTest</name>
+          <currentState>switch</currentState>
+          <nextState>switch</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <agentVariable>movement</agentVariable>
+            </lhs>
+            <operator>&lt;</operator>
+            <rhs>
+              <value>0.25</value>
+            </rhs>
+            <gpu:maxItterations>200</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+
+
+        <gpu:function>
+          <name>localConditionTest</name>
+          <currentState>switch</currentState>
+          <nextState>switch</nextState>
+          <condition>
+            <lhs>
+              <agentVariable>engaged_to</agentVariable>
+            </lhs>
+            <operator>==</operator>
+            <rhs>
+              <value>-1</value>
+            </rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+
+        <gpu:function>
+          <name>mutualConditionTest_left</name>
+          <currentState>switch</currentState>
+          <nextState>switch</nextState>
+          <condition>
+            <lhs>
+              <agentVariable>engaged_to</agentVariable>
+            </lhs>
+            <operator>&lt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <gpu:function>
+          <name>mutualConditionTest_right</name>
+          <currentState>switch</currentState>
+          <nextState>switch</nextState>
+          <condition>
+            <lhs>
+              <agentVariable>engaged_to</agentVariable>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+      
+
+      </functions>
+      <states>
+        <gpu:state>
+          <name>default</name>
+        </gpu:state>
+        <gpu:state>
+          <name>extra</name>
+        </gpu:state>
+        <gpu:state>
+          <name>switch</name>
+        </gpu:state>
+        <initialState>default</initialState>
+      </states>
+      <gpu:type>continuous</gpu:type>
+      <gpu:bufferSize>65536</gpu:bufferSize>
+    </gpu:xagent>
+
+  </xagents>
+  
+  <messages>
+    <gpu:message>
+      <name>antigen_rank_message</name>
+      <variables>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lattice_site</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>rank</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>z</name>
+        </gpu:variable>
+      </variables>
+      <gpu:partitioningNone></gpu:partitioningNone>
+      <gpu:bufferSize>65536</gpu:bufferSize>
+    </gpu:message>
+
+    <gpu:message>
+      <name>bcell_rank_message</name>
+      <variables>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lattice_site</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>rank</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>z</name>
+        </gpu:variable>
+      </variables>
+      <gpu:partitioningNone></gpu:partitioningNone>
+      <gpu:bufferSize>65536</gpu:bufferSize>
+    </gpu:message>
+
+    <gpu:message>
+      <name>antigen_lower_count_message</name>
+      <variables>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lattice_site</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>rank</name>
+          <defaultValue>0.0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lowerRankCount</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>z</name>
+        </gpu:variable>
+        </variables>
+      <gpu:partitioningNone></gpu:partitioningNone>
+      <gpu:bufferSize>65536</gpu:bufferSize>
+    </gpu:message>
+
+    <gpu:message>
+      <name>bcell_lower_count_message</name>
+      <variables>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lattice_site</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>rank</name>
+          <defaultValue>0.0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>lowerRankCount</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>z</name>
+        </gpu:variable>
+        </variables>
+      <gpu:partitioningNone></gpu:partitioningNone>
+      <gpu:bufferSize>65536</gpu:bufferSize>
+    </gpu:message>
+
+  </messages>
+  
+  <layers>
+    <layer>
+      <gpu:layerFunction><name>e2s</name></gpu:layerFunction> <!-- all agents leave e state to s state. E is then pointless. -->
+      <gpu:layerFunction><name>antigen_generate_rank_and_output</name></gpu:layerFunction>
+      <gpu:layerFunction><name>bcell_generate_rank_and_output</name></gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction><name>globalConditionTest</name></gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction><name>hl_inject</name></gpu:layerFunction>
+      <gpu:layerFunction><name>hl_compute</name></gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction><name>antigen_count_lower_antigens_and_broadcast</name></gpu:layerFunction>
+      <gpu:layerFunction><name>bcell_count_lower_bcells_and_broadcast</name></gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction><name>hl_interactions</name></gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction><name>antigen_match_lower_bcell</name></gpu:layerFunction>
+      <gpu:layerFunction><name>bcell_match_lower_antigen</name></gpu:layerFunction>
+    </layer>
+
+    <layer>
+      <gpu:layerFunction><name>to_switch</name></gpu:layerFunction>
+    </layer>
+
+    <layer>
+      <gpu:layerFunction><name>bcell_create</name></gpu:layerFunction>
+    </layer>
+
+    <layer></layer> <!-- invalid blank layer -->
+    <layer></layer> <!-- invalid blank layer -->
+
+    <layer>
+      <gpu:layerFunction><name>from_switch</name></gpu:layerFunction>
+      <gpu:layerFunction><name>bcell_die</name></gpu:layerFunction>
+    </layer>
+
+    <layer>
+      <gpu:layerFunction><name>localConditionTest</name></gpu:layerFunction>
+    </layer>
+
+    <layer>
+      <gpu:layerFunction><name>mutualConditionTest_left</name></gpu:layerFunction>
+      <gpu:layerFunction><name>mutualConditionTest_right</name></gpu:layerFunction>
+    </layer>
+
+
+
+
+
+  </layers>
+
+</gpu:xmodel>
