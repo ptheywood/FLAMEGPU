@@ -343,33 +343,6 @@ def generate_graphviz(args, xml):
     dot.subgraph(ifg)
 
 
-
-
-  # If there are any step functions, add a subgraph.
-  # if step_functions and len(step_functions) > 0:
-  if render_step_functions(args):
-    sfg = graphviz.Digraph(
-      name="cluster_stepFunctions", 
-    )
-    sfg.attr(label="stepFunctions")
-    sfg.attr(color="brown")
-    sfg.attr(penwidth="3")
-
-    for func in step_functions:
-      sfg.node(func, shape=FUNCTION_SHAPE)
-    
-    # Add edge between subsequent nodes, if needed.
-    if len(step_functions) > 1:
-      for a, b in zip(step_functions, step_functions[1:]):
-        sfg.edge(a, b)
-
-    sfg.node("invisible_stepFunctions", shape="point", style="invis")
-
-    # Add to the main graph
-    dot.subgraph(sfg)
-
-
-
   # If there are any exit functions, add a subgraph.
   # if exit_functions and len(exit_functions) > 0:
   if render_exit_functions(args):
@@ -397,21 +370,51 @@ def generate_graphviz(args, xml):
 
 
   # Create a subgraph for the agent functions.
-  afg= graphviz.Digraph(
-    name="cluster_agentFunctions"
+  iteration_graph = graphviz.Digraph(
+    name="cluster_iteration_graph"
   )
-  afg.attr(label="Function Layers")
-  afg.attr(color="cyan")
-  afg.attr(penwidth="3")
-  afg.attr(rankdir="RL")
+  iteration_graph.attr(label="Iteration")
+  iteration_graph.attr(color="cyan")
+  iteration_graph.attr(penwidth="3")
+  iteration_graph.attr(rankdir="RL")
 
-  afg.node("invisible_agentFunctions", shape="point", style="invis")
+  iteration_graph.node("invisible_iteration_graph", shape="point", style="invis")
 
+  layers_graph = graphviz.Digraph(
+    name="cluster_layers_graph"
+  )
+  layers_graph.attr(label="Function Layers")
+  layers_graph.attr(color="blue")
+  layers_graph.attr(penwidth="3")
+  layers_graph.attr(rankdir="RL")
 
+  layers_graph.node("invisible_layers_graph", shape="point", style="invis")
+
+  # If there are any step functions, add a subgraph.
+  # if step_functions and len(step_functions) > 0:
+  if render_step_functions(args):
+    sfg = graphviz.Digraph(
+      name="cluster_stepFunctions", 
+    )
+    sfg.attr(label="stepFunctions")
+    sfg.attr(color="brown")
+    sfg.attr(penwidth="3")
+
+    for func in step_functions:
+      sfg.node(func, shape=FUNCTION_SHAPE)
+    
+    # Add edge between subsequent nodes, if needed.
+    if len(step_functions) > 1:
+      for a, b in zip(step_functions, step_functions[1:]):
+        sfg.edge(a, b)
+
+    sfg.node("invisible_stepFunctions", shape="point", style="invis")
+
+    # Add to the main graph
+    iteration_graph.subgraph(sfg)
 
 
   layer_count = len(function_layers)
-  # print("{:} layers".format(layer_count))
 
 
   # Create a dict of one subgraph per agent
@@ -420,6 +423,30 @@ def generate_graphviz(args, xml):
   agent_state_connections = {}
 
   message_info = {}
+
+  # @todo - support multiple connection states per layer.
+  hostLayerFunction_connections = [False]* layer_count
+  hostLayerFunction_subgraph = graphviz.Digraph(
+    name="cluster_hostLayerFunctions"  
+  )
+  hostLayerFunction_subgraph.attr(label="hostLayerFunctions")
+  hostLayerFunction_subgraph.attr(color="yellow")
+  hostLayerFunction_subgraph.attr(penwidth="3")
+
+  if len(host_layer_functions) > 0:
+    label=""
+    for i in range(layer_count + 1):
+      # Add a (hidden) node per state.
+      key="{:}_{:}".format("host", i)
+      hostLayerFunction_subgraph.node(
+        key, 
+        label=label, 
+        color=STATE_COLOR, 
+        fontcolor=STATE_COLOR,
+        group=label,
+        shape="circle",
+      )
+
 
   for agent_name in agent_names:
     agent_subgraphs[agent_name] = graphviz.Digraph(
@@ -504,9 +531,22 @@ def generate_graphviz(args, xml):
               "layer": layerIndex,
             })
       elif function_name in host_layer_functions:
-        print("@todo - host layer functions.")
+        # Add a node for the host layer function.
+        hostLayerFunction_subgraph.node(
+          function_name,
+          shape=FUNCTION_SHAPE,
+          rank=str(layerIndex)
+        )
+        state_before = "{:}_{:}".format("host", layerIndex)
+        state_after = "{:}_{:}".format("host", layerIndex + 1)
 
+        # Add a link between the state_before and the function node, 
+        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10")
+        # And a link from the function node to the after state.
+        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10")
 
+        # Mark off the connection if staying in the same state
+        hostLayerFunction_connections[layerIndex] = True
 
 
   # Add missing links
@@ -533,9 +573,48 @@ def generate_graphviz(args, xml):
 
 
 
+  # Add missing links for host layer functions if required.
+  if len(host_layer_functions) > 0:
+    for startLayer, connected in enumerate(hostLayerFunction_connections):
+      if not connected:
+        state_before = "{:}_{:}".format("host", startLayer)
+        state_after = "{:}_{:}".format("host", startLayer+1)
+        # Add the edge
+        hostLayerFunction_subgraph.edge(state_before, state_after)
+
+        # Add an invisible node to get vertical alignment across agents
+        invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
+        hostLayerFunction_subgraph.node(
+          invisible_node_key,
+          shape=HIDDEN_SHAPE,
+          label='',
+          style=HIDDEN_STYLE,
+        )
+        # And invisible edges.
+        hostLayerFunction_subgraph.edge(
+          state_before,
+          invisible_node_key,
+          color=HIDDEN_COLOR,
+          style=HIDDEN_STYLE,
+        )
+        hostLayerFunction_subgraph.edge(
+          invisible_node_key,
+          state_after,
+          color=HIDDEN_COLOR,
+          style=HIDDEN_STYLE,
+        )
+        # Mark as done
+        hostLayerFunction_connections[startLayer] = True
+
+
+
   # Add each agent_subgraph to the agent functions subgraph.
   for agent_subgraph in agent_subgraphs.values():
-    afg.subgraph(agent_subgraph)
+    layers_graph.subgraph(agent_subgraph)
+
+  # If there are any host layer functions, add the host layer subgraph
+  if len(host_layer_functions) > 0:
+    layers_graph.subgraph(hostLayerFunction_subgraph)
 
    # try adding an invisble link between all 0 states, as a weird hack to get vertical alignment?
 
@@ -552,16 +631,19 @@ def generate_graphviz(args, xml):
       sg.edge(key, zero, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
       ordered_state_invis_nodes.append(key)
 
+  # If there are host layers, add an invisible node. 
+  # @todo
+
   for a, b in zip(ordered_state_invis_nodes, ordered_state_invis_nodes[1:]):
     # Add an invisble edge.
     sg.edge(a, b, color=HIDDEN_STYLE, style=HIDDEN_STYLE)
 
-  afg.subgraph(sg)
+  layers_graph.subgraph(sg)
 
   # Add messages nodes
   for message_name in message_info:
     message_node_key = "message_{:}".format(message_name)
-    afg.node(
+    layers_graph.node(
       message_node_key, 
       label=message_name,
       shape=MESSAGE_SHAPE,
@@ -575,7 +657,7 @@ def generate_graphviz(args, xml):
     for output_by in message_info[message_name]["output_by"]:
       function_key = "{:}".format(output_by["function"])
 
-      afg.edge(
+      layers_graph.edge(
         function_key,
         message_node_key,
         color=MESSAGE_COLOR,
@@ -586,45 +668,56 @@ def generate_graphviz(args, xml):
     for input_by in message_info[message_name]["input_by"]:
       function_key = "{:}".format(input_by["function"])
 
-      afg.edge(
+      layers_graph.edge(
         message_node_key,
         function_key,
         color=MESSAGE_COLOR,
         penwidth="3",
       )
 
+  iteration_graph.subgraph(layers_graph)
 
-  dot.subgraph(afg)
+  dot.subgraph(iteration_graph)
 
 
   # Connect the clusters.
-  if render_init_functions(args) and render_step_functions(args):
+  if render_init_functions(args):
     dot.edge(
       "invisible_initFunctions",
-      "invisible_stepFunctions", 
+      "invisible_iteration_graph", 
       ltail="cluster_initFunctions", 
-      lhead="cluster_stepFunctions"
-    )
-  if render_init_functions(args) and not render_step_functions(args):
-    dot.edge(
-      "invisible_initFunctions",
-      "invisible_agentFunctions", 
-      ltail="cluster_initFunctions", 
-      lhead="cluster_agentFunctions"
+      lhead="cluster_iteration_graph",
     )
   if render_step_functions(args):
+    # iteration to step
+    dot.edge(
+      "invisible_iteration_graph", 
+      "invisible_stepFunctions",
+      ltail="cluster_iteration_graph",
+      lhead="cluster_stepFunctions", 
+    )
+    # step to layers
     dot.edge(
       "invisible_stepFunctions",
-      "invisible_agentFunctions", 
+      "invisible_layers_graph", 
       ltail="cluster_stepFunctions", 
-      lhead="cluster_agentFunctions"
+      lhead="cluster_layers_graph",
     )
+  else:
+    # iteration to layers
+    dot.edge(
+      "invisible_iteration_graph", 
+      "invisible_layers_graph",
+      ltail="cluster_iteration_graph",
+      lhead="cluster_layers_graph", 
+    )
+
   if render_exit_functions(args):
     dot.edge(
-      "invisible_agentFunctions",
+      "invisible_iteration_graph",
       "invisible_exitFunctions", 
-      ltail="cluster_agentFunctions", 
-      lhead="cluster_exitFunctions"
+      ltail="cluster_iteration_graph", 
+      lhead="cluster_exitFunctions",
     )
 
   # Finally fix some ranks.
