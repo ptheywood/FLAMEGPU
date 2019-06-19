@@ -11,7 +11,8 @@
 # @todo - tidy
 # @todo - group for vertical alignment. Keratinocyte is an example. Should use the same group as the ancestor state, unless there are 2 childs of that state.
 # @todo - order is right to left not left to right?
-# @todo - conditions
+# @todo - globalConditions - keratinocyte as example
+# @todo - localConditions - stable marriage as example
 # @todo - death
 # @todo - agent creation
 # @todo - hostLauyer functions
@@ -19,6 +20,9 @@
 # @todo - handle terminating paths. I.e. Keratinocyte migrate? / resolve, where currenlty a real-link is drawn even though it is not necesary. I.e. resolve state all immediately feeds through output_location into default
 # @todo - fix wiggles
 # @todo - stable marriage as good example of conditional.
+# @todo - key
+# @todo - positioning of init functions etc.
+# @todo - iteration loop
 
 
 import argparse
@@ -431,7 +435,13 @@ def generate_graphviz(args, xml):
       agent_state_connections[agent_name][state] = [False]* layer_count
       for i in range(layer_count + 1):
         state_id = "{:}_{:}".format(state, i)
-        agent_subgraphs[agent_name].node(state_id, label=state, color="#aaaaaa", fontcolor="#aaaaaa")
+        agent_subgraphs[agent_name].node(
+          state_id, 
+          label=state, 
+          color=STATE_COLOR, 
+          fontcolor=STATE_COLOR,
+          group=state,
+        )
 
 
   # For each function in each layer
@@ -439,60 +449,62 @@ def generate_graphviz(args, xml):
   for layerIndex, function_layer in enumerate(function_layers):
     for col, function_name in enumerate(function_layer):
       # get the function data
-      function_obj = agent_functions[function_name]
-      # Get the agent data
-      agent_name = function_obj["agent"]
-      state_before = "{:}_{:}".format(function_obj["currentState"], layerIndex)
-      state_after = "{:}_{:}".format(function_obj["nextState"], layerIndex + 1)
-      # print("{:}->{:}, {:}:{:}, {:}=>{:}".format(agent_name, function_name, layerIndex, col,state_before, state_after))
+      if function_name in agent_functions:
+        function_obj = agent_functions[function_name]
+        # Get the agent data
+        agent_name = function_obj["agent"]
+        state_before = "{:}_{:}".format(function_obj["currentState"], layerIndex)
+        state_after = "{:}_{:}".format(function_obj["nextState"], layerIndex + 1)
+        # print("{:}->{:}, {:}:{:}, {:}=>{:}".format(agent_name, function_name, layerIndex, col,state_before, state_after))
 
-      # Add a node for the function.
-      agent_subgraphs[agent_name].node(
-        function_name,
-        shape=FUNCTION_SHAPE,
-        rank=str(layerIndex)
-      )
-
-
-      # Mark off the connection if staying int eh same state
-      if function_obj["currentState"] == function_obj["nextState"]:
-        agent_state_connections[agent_name][function_obj["currentState"]][layerIndex] = True
-
-      # Add a link between the state_before and the function node, 
-      agent_subgraphs[agent_name].edge(state_before, function_name)
-      # And a link from the function node to teh after state.
-      agent_subgraphs[agent_name].edge(function_name, state_after)
+        # Add a node for the function.
+        agent_subgraphs[agent_name].node(
+          function_name,
+          shape=FUNCTION_SHAPE,
+          rank=str(layerIndex)
+        )
 
 
-      # Store message related information in a global list for later insertion.
-      if function_obj["inputs"]:
-        for msg_input in function_obj["inputs"]:
-          msg_name = msg_input["name"]
-          if msg_name not in message_info:
-            message_info[msg_name] = {
-              "output_by": [],
-              "input_by": [],
-            }
-          message_info[msg_name]["input_by"].append({
-            "agent": agent_name,
-            "function": function_name,
-            "layer": layerIndex,
-          })
+        # Mark off the connection if staying int eh same state
+        if function_obj["currentState"] == function_obj["nextState"]:
+          agent_state_connections[agent_name][function_obj["currentState"]][layerIndex] = True
 
-      if function_obj["outputs"]:
-        for msg_output in function_obj["outputs"]:
-          msg_name = msg_output["name"]
-          if msg_name not in message_info:
-            message_info[msg_name] = {
-              "output_by": [],
-              "input_by": [],
-            }
-          message_info[msg_name]["output_by"].append({
-            "agent": agent_name,
-            "function": function_name,
-            "layer": layerIndex,
-          })
+        # Add a link between the state_before and the function node, 
+        agent_subgraphs[agent_name].edge(state_before, function_name)
+        # And a link from the function node to teh after state.
+        agent_subgraphs[agent_name].edge(function_name, state_after)
 
+
+        # Store message related information in a global list for later insertion.
+        if function_obj["inputs"]:
+          for msg_input in function_obj["inputs"]:
+            msg_name = msg_input["name"]
+            if msg_name not in message_info:
+              message_info[msg_name] = {
+                "output_by": [],
+                "input_by": [],
+              }
+            message_info[msg_name]["input_by"].append({
+              "agent": agent_name,
+              "function": function_name,
+              "layer": layerIndex,
+            })
+
+        if function_obj["outputs"]:
+          for msg_output in function_obj["outputs"]:
+            msg_name = msg_output["name"]
+            if msg_name not in message_info:
+              message_info[msg_name] = {
+                "output_by": [],
+                "input_by": [],
+              }
+            message_info[msg_name]["output_by"].append({
+              "agent": agent_name,
+              "function": function_name,
+              "layer": layerIndex,
+            })
+      elif function_name in host_layer_functions:
+        print("@todo - host layer functions.")
 
 
 
