@@ -32,6 +32,7 @@ import os
 import xml.etree.ElementTree as ET
 
 import graphviz
+from collections import OrderedDict
 
 DEBUG_COLORS = True
 
@@ -298,9 +299,6 @@ def generate_graphviz(args, xml):
   function_layers = get_function_layers(args, xmlroot)
   agent_states = get_agent_states(args, xmlroot)
   
-  # print(init_functions)
-  # print(step_functions)
-  # print(exit_functions)
   
 
 
@@ -423,6 +421,14 @@ def generate_graphviz(args, xml):
 
   layer_count = len(function_layers)
 
+  # Prep a dict to group node by rank.
+  rank_count = (layer_count * 2) + 2
+  rank_list = OrderedDict() 
+  for i in range(layer_count):
+    rank_list["s_{:}".format(i)] = []
+    rank_list["f_{:}".format(i)] = []
+  rank_list["s_{:}".format(i+1)] = []
+
 
   # Create a dict of one subgraph per agent
   # For each agent
@@ -453,6 +459,7 @@ def generate_graphviz(args, xml):
         group=label,
         shape="circle",
       )
+      rank_list["s_{:}".format(i)].append(key)
 
 
   for agent_name in agent_names:
@@ -477,6 +484,9 @@ def generate_graphviz(args, xml):
           group=state,
         )
 
+        # Add it to the relevant rank layer.
+        rank_list["s_{:}".format(i)].append(state_id)
+
 
   # For each function in each layer
 
@@ -495,8 +505,10 @@ def generate_graphviz(args, xml):
         agent_subgraphs[agent_name].node(
           function_name,
           shape=FUNCTION_SHAPE,
-          rank=str(layerIndex)
         )
+
+        # Add it to the relevant rank layer.
+        rank_list["f_{:}".format(layerIndex)].append(function_name)
 
 
         # Mark off the connection if staying int eh same state
@@ -542,7 +554,6 @@ def generate_graphviz(args, xml):
         hostLayerFunction_subgraph.node(
           function_name,
           shape=FUNCTION_SHAPE,
-          rank=str(layerIndex)
         )
         state_before = "{:}_{:}".format("host", layerIndex)
         state_after = "{:}_{:}".format("host", layerIndex + 1)
@@ -555,6 +566,10 @@ def generate_graphviz(args, xml):
         # Mark off the connection if staying in the same state
         hostLayerFunction_connections[layerIndex] = True
 
+        # Add a rank same index.
+        rank_list["f_{:}".format(layerIndex)].append(function_name)
+
+
 
   # Add missing links
   for agent_name in agent_names:
@@ -566,14 +581,6 @@ def generate_graphviz(args, xml):
           
           # Add the edge
           agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
-
-          # Add an invisible node to get vertical alignment across agents
-          invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
-          agent_subgraphs[agent_name].node(invisible_node_key, shape=HIDDEN_SHAPE, label='', style=HIDDEN_STYLE)
-          # And invisible edges.
-          agent_subgraphs[agent_name].edge(state_before, invisible_node_key, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
-          agent_subgraphs[agent_name].edge(invisible_node_key, state_after, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
-
 
           # Mark as done
           agent_state_connections[agent_name][state][startLayer] = True
@@ -589,27 +596,6 @@ def generate_graphviz(args, xml):
         # Add the edge
         hostLayerFunction_subgraph.edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
 
-        # Add an invisible node to get vertical alignment across agents
-        invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
-        hostLayerFunction_subgraph.node(
-          invisible_node_key,
-          shape=HIDDEN_SHAPE,
-          label='',
-          style=HIDDEN_STYLE,
-        )
-        # And invisible edges.
-        hostLayerFunction_subgraph.edge(
-          state_before,
-          invisible_node_key,
-          color=HIDDEN_COLOR,
-          style=HIDDEN_STYLE,
-        )
-        hostLayerFunction_subgraph.edge(
-          invisible_node_key,
-          state_after,
-          color=HIDDEN_COLOR,
-          style=HIDDEN_STYLE,
-        )
         # Mark as done
         hostLayerFunction_connections[startLayer] = True
 
@@ -623,29 +609,6 @@ def generate_graphviz(args, xml):
   if len(host_layer_functions) > 0:
     layers_graph.subgraph(hostLayerFunction_subgraph)
 
-   # try adding an invisble link between all 0 states, as a weird hack to get vertical alignment?
-
-  # heirarchys are annyoing...
-  # flat_states = [item for agent, sublist in agent_states.items() for item in sublist]
-  sg = graphviz.Digraph("state_alignment")
-  sg.attr(rank="same")
-  ordered_state_invis_nodes = []
-  for agent_name in agent_names:
-    for state in agent_states[agent_name]:
-      key = "{:}_-1".format(state)
-      zero = "{:}_0".format(state)
-      sg.node(key, shape="point",color=HIDDEN_COLOR, rank="same", style=HIDDEN_STYLE)
-      sg.edge(key, zero, color=HIDDEN_COLOR, style=HIDDEN_STYLE)
-      ordered_state_invis_nodes.append(key)
-
-  # If there are host layers, add an invisible node. 
-  # @todo
-
-  for a, b in zip(ordered_state_invis_nodes, ordered_state_invis_nodes[1:]):
-    # Add an invisble edge.
-    sg.edge(a, b, color=HIDDEN_STYLE, style=HIDDEN_STYLE)
-
-  layers_graph.subgraph(sg)
 
   # Add messages nodes
   for message_name in message_info:
@@ -681,6 +644,14 @@ def generate_graphviz(args, xml):
         color=MESSAGE_COLOR,
         penwidth="3",
       )
+
+  # For each rank list element, specify the nodes as having the same rank.
+    
+  for k, nodes in rank_list.items():
+    if len(nodes) > 0:
+      ranksame_string = "\t{ rank=same; " + "; ".join(nodes) + "; }"
+      layers_graph.body.append(ranksame_string)
+    
 
   iteration_graph.subgraph(layers_graph)
 
