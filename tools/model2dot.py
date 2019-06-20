@@ -38,7 +38,7 @@ DEBUG_COLORS = True
 
 
 MESSAGE_COLOR = "green4"
-MESSAGE_SHAPE = "box"
+MESSAGE_SHAPE = "parallelogram"
 
 FUNCTION_COLOR = "black"
 FUNCTION_SHAPE = "box"
@@ -49,6 +49,16 @@ STATE_COLOR = "#aaaaaa"
 STATE_SHAPE = "circle"
 STATE_STATE_LINK_COLOR = "#000000"
 
+
+START_KEY = "START"
+START_LABEL = "START"
+START_SHAPE = "oval"
+START_COLOR = "darkgreen"
+
+END_KEY = "END"
+END_LABEL = "END"
+END_SHAPE = "octagon"
+END_COLOR = "red"
 
 HIDDEN_COLOR = "#ffffff"
 HIDDEN_STYLE = "invis"
@@ -319,7 +329,23 @@ def generate_graphviz(args, xml):
 
 
 
+
   # Populate the digraph.
+
+  # Add a start node and an end node.
+
+  dot.node(
+    START_KEY, 
+    label=START_LABEL,
+    shape=START_SHAPE,
+    color=START_COLOR,
+  )
+  dot.node(
+    END_KEY, 
+    label=END_LABEL,
+    shape=END_SHAPE,
+    color=END_COLOR,
+  )
 
   # If there are any init functions, add a subgraph.
   # if init_functions and len(init_functions) > 0:
@@ -658,6 +684,9 @@ def generate_graphviz(args, xml):
   dot.subgraph(iteration_graph)
 
 
+
+
+
   # Connect the clusters.
   if render_init_functions(args):
     dot.edge(
@@ -698,7 +727,38 @@ def generate_graphviz(args, xml):
       lhead="cluster_exitFunctions",
     )
 
-  # Finally fix some ranks.
+
+  # Calculate where start and end should connect to. Default to the iteration subgraph cluster
+  start_dest_node = "invisible_iteration_graph"
+  start_dest_cluster = "cluster_iteration_graph"
+  end_source_node = "invisible_iteration_graph"
+  end_source_cluster = "cluster_iteration_graph"
+
+  # If we have an init, connect the start to init.
+  if render_init_functions(args):
+    start_dest_node = "invisible_initFunctions"
+    start_dest_cluster = "cluster_initFunctions"
+
+  # if render_step_functions(args):
+
+  # If we have exit functions, the end connects to the exit.
+  if render_exit_functions(args):
+    end_source_node = "invisible_exitFunctions"
+    end_source_cluster = "cluster_exitFunctions"
+
+  # Actually add the start / end links.
+  dot.edge(
+    START_KEY,
+    start_dest_node, 
+    lhead=start_dest_cluster,
+    group="outer",
+  )
+  dot.edge(
+    end_source_node, 
+    END_KEY,
+    ltail=end_source_cluster,
+    group="outer",
+  )
 
   # dot.attr(rank="same")
 
