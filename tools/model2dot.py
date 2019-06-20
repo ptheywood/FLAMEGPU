@@ -320,15 +320,8 @@ def generate_graphviz(args, xml):
   dot.body.append("\tnewrank=true;")
   dot.body.append("\tcompound=true;")
   dot.body.append("\tsplines=ortho;")
-  dot.body.append("\trankdir=ortho;")
+  # dot.body.append("\trankdir=ortho;")
   dot.body.append("\tordering=out;")
-  # dot.body.append("\tSTART [style=invisible];");
-  # dot.body.append("\tMID [style=invisible];");
-  # dot.body.append("\tEND [style=invisible];");
-
-
-
-
 
   # Populate the digraph.
 
@@ -710,14 +703,14 @@ def generate_graphviz(args, xml):
       ltail="cluster_stepFunctions", 
       lhead="cluster_layers_graph",
     )
-  else:
+  # else:
     # iteration to layers
-    dot.edge(
-      "invisible_iteration_graph", 
-      "invisible_layers_graph",
-      ltail="cluster_iteration_graph",
-      lhead="cluster_layers_graph", 
-    )
+    # dot.edge(
+    #   "invisible_iteration_graph", 
+    #   "invisible_layers_graph",
+    #   ltail="cluster_iteration_graph",
+    #   lhead="cluster_layers_graph", 
+    # )
 
   if render_exit_functions(args):
     dot.edge(
