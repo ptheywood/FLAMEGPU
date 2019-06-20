@@ -35,7 +35,7 @@ import graphviz
 from collections import OrderedDict
 import tempfile
 
-DEBUG_COLORS = True
+DEBUG_COLORS = False
 STATE_FOLDING = True
 
 
@@ -66,12 +66,23 @@ HIDDEN_COLOR = "#ffffff"
 HIDDEN_STYLE = "invis"
 HIDDEN_SHAPE = "point"
 
+HOSTLAYERFUNCTION_LINK_COLOR = "invis"
+HOSTLAYERFUNCTION_STATE_STYLE = "invis"
+HOSTLAYERFUNCTION_STATE_COLOR = "invis"
+HOSTLAYERFUNCTION_STATE_SHAPE = "circle"
+
 if DEBUG_COLORS:
   HIDDEN_COLOR = "#dddddd"
   HIDDEN_STYLE = None
 
   FUNCTION_LINK_COLOR = "#ff0000"
   STATE_STATE_LINK_COLOR = "#00ff00"
+
+
+  HOSTLAYERFUNCTION_LINK_COLOR = "#ff00ff"
+  HOSTLAYERFUNCTION_STATE_STYLE = None
+  HOSTLAYERFUNCTION_STATE_COLOR = "ff00ff"
+  HOSTLAYERFUNCTION_STATE_SHAPE = "circle"
 
 
 
@@ -481,10 +492,11 @@ def generate_graphviz(args, xml):
       hostLayerFunction_subgraph.node(
         key, 
         label=label, 
-        color=STATE_COLOR, 
-        fontcolor=STATE_COLOR,
         group=label,
-        shape="circle",
+        color=HOSTLAYERFUNCTION_STATE_COLOR, 
+        fontcolor=HOSTLAYERFUNCTION_STATE_COLOR,
+        shape=HOSTLAYERFUNCTION_STATE_SHAPE,
+        style=HOSTLAYERFUNCTION_STATE_STYLE,
       )
       rank_list["s_{:}".format(i)].append(key)
 
@@ -579,9 +591,9 @@ def generate_graphviz(args, xml):
         state_after = "{:}_{:}".format("host", layerIndex + 1)
 
         # Add a link between the state_before and the function node, 
-        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10", color=FUNCTION_LINK_COLOR)
+        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR)
         # And a link from the function node to the after state.
-        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10", color=FUNCTION_LINK_COLOR)
+        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR)
 
         # Mark off the connection if staying in the same state
         hostLayerFunction_connections[layerIndex] = True
@@ -656,7 +668,7 @@ def generate_graphviz(args, xml):
       for link in new_links:
         state_before = "{:}_{:}".format(state, link[0])
         state_after = "{:}_{:}".format(state, link[1])
-        agent_subgraphs[agent_name].edge(state_before, state_after, color="#00ffff")
+        agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
 
       # Remove each folded state from the global list of state nodes to create.
       for i in folded_states:
@@ -687,7 +699,7 @@ def generate_graphviz(args, xml):
         state_before = "{:}_{:}".format("host", startLayer)
         state_after = "{:}_{:}".format("host", startLayer+1)
         # Add the edge
-        hostLayerFunction_subgraph.edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
+        hostLayerFunction_subgraph.edge(state_before, state_after, color=HOSTLAYERFUNCTION_LINK_COLOR)
 
         # Mark as done
         hostLayerFunction_connections[startLayer] = True
