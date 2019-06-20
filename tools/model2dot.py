@@ -33,8 +33,10 @@ import xml.etree.ElementTree as ET
 
 import graphviz
 from collections import OrderedDict
+import tempfile
 
 DEBUG_COLORS = True
+STATE_FOLDING = True
 
 
 MESSAGE_COLOR = "green4"
@@ -104,6 +106,11 @@ def parse_arguments():
     "--render",
     action="store_true",
     help="Render the graphviz dotfile"
+    )
+  parser.add_argument(
+    "--show",
+    action="store_true",
+    help="Render the graphviz dotfile and open the output file. Implies --render."
     )
   parser.add_argument(
     "--init-functions",
@@ -453,6 +460,7 @@ def generate_graphviz(args, xml):
   # For each agent
   agent_subgraphs = {}
   agent_state_connections = {}
+  agent_state_nodes = {}
 
   message_info = {}
 
@@ -488,27 +496,17 @@ def generate_graphviz(args, xml):
     agent_subgraphs[agent_name].attr(label=agent_name)
     # Also create a data structure to show if a state/function is used or not. 
     agent_state_connections[agent_name] = {}
+    # list of nodes to create per agent state
+    agent_state_nodes[agent_name] = {}
 
 
     # Add each state once per layer + 1
     for state in agent_states[agent_name]:
-      agent_state_connections[agent_name][state] = [False]* layer_count
-      for i in range(layer_count + 1):
-        state_id = "{:}_{:}".format(state, i)
-        agent_subgraphs[agent_name].node(
-          state_id, 
-          label=state, 
-          color=STATE_COLOR, 
-          fontcolor=STATE_COLOR,
-          group=state,
-        )
-
-        # Add it to the relevant rank layer.
-        rank_list["s_{:}".format(i)].append(state_id)
-
+      agent_state_connections[agent_name][state] = [{"direct": False, "out": False, "in": False} for i in range((layer_count + 1))]
+      agent_state_nodes[agent_name][state] = list(range(layer_count + 1))
+      
 
   # For each function in each layer
-
   for layerIndex, function_layer in enumerate(function_layers):
     for col, function_name in enumerate(function_layer):
       # get the function data
@@ -529,10 +527,13 @@ def generate_graphviz(args, xml):
         # Add it to the relevant rank layer.
         rank_list["f_{:}".format(layerIndex)].append(function_name)
 
-
-        # Mark off the connection if staying int eh same state
+        # print(layerIndex, function_name)
+        # print("  ", state_before, state_after)
+        # Indicate that the state has an incoming / outgoing edge.
         if function_obj["currentState"] == function_obj["nextState"]:
-          agent_state_connections[agent_name][function_obj["currentState"]][layerIndex] = True
+          agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["direct"] = True
+        agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["out"] = True
+        agent_state_connections[agent_name][function_obj["nextState"]][layerIndex]["in"] = True
 
         # Add a link between the state_before and the function node, 
         agent_subgraphs[agent_name].edge(state_before, function_name)
@@ -590,20 +591,93 @@ def generate_graphviz(args, xml):
 
 
 
-  # Add missing links
+  # for a, states in agent_state_connections.items():
+  #   print(a)
+  #   for s, layers in states.items():
+  #     print("  " + s)
+  #     for l, v in enumerate(layers):
+  #       print("    "+ str(l) + " " + str(v))
+
+  # Add missing links and find foldable links
+  foldable_links = OrderedDict()
+
   for agent_name in agent_names:
+    foldable_links[agent_name] = {}
     for state in agent_states[agent_name]:
-      for startLayer, connected in enumerate(agent_state_connections[agent_name][state]):
-        if not connected:
+      foldable_links[agent_name][state] = []
+      for startLayer, connection_info in enumerate(agent_state_connections[agent_name][state]):
+        if startLayer != len(agent_state_connections[agent_name][state]) - 1:
           state_before = "{:}_{:}".format(state, startLayer)
           state_after = "{:}_{:}".format(state, startLayer+1)
-          
-          # Add the edge
-          agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
+          # print(connection_info)
+          # If any part of connection info is true, we need the node to render.
+          # If direct is true, there is already an edge.
 
-          # Mark as done
-          agent_state_connections[agent_name][state][startLayer] = True
+          if connection_info["direct"]:
+            # print("Direct connection between state_before and state_after")
+            pass # do nothing.
+          elif not connection_info["direct"] and not connection_info["out"] and not connection_info["in"]:
+            if STATE_FOLDING :
+              # Mark as foldable.
+              foldable_links[agent_name][state].append((startLayer, startLayer+1))
+            else:
+              # Otherwise add a link.
+              agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
+          else:
+            # @todo - this is where we can eliminate impossible state transitions (somehow) Need to consider condtional functions.
+            # There should always be *exactly* one non-conditional outgoing link from a node
+            # But if 
+            agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
 
+  # The list of foldable links is in order per agent/state pair.
+  # Iterate the lists pairwise, comparing the relevant components, building the list of newlinks.
+  # There must be a beter way of doing this.
+  for agent_name, states in foldable_links.items():
+    for state, ijlist in states.items():
+      new_links = []
+      # Build a list of state nodes which are not needed
+      folded_states = []
+      if len(ijlist):
+        src = ijlist[0][0]
+        dst = ijlist[0][1]
+        # Do not repeat the first element.
+        for idx, ij in enumerate(ijlist[1:]):
+          if ij[0] == dst:
+            dst = ij[1]
+            folded_states.append(ij[0])
+          else:
+            new_links.append((src, dst))
+            src = ij[0]
+            dst = ij[1]
+        # Add the final pair
+        new_links.append((src, dst))
+
+      # For each new link, add it.
+      for link in new_links:
+        state_before = "{:}_{:}".format(state, link[0])
+        state_after = "{:}_{:}".format(state, link[1])
+        agent_subgraphs[agent_name].edge(state_before, state_after, color="#00ffff")
+
+      # Remove each folded state from the global list of state nodes to create.
+      for i in folded_states:
+        agent_state_nodes[agent_name][state].remove(i)
+
+
+  # Add state nodes.
+  for agent_name, states in agent_state_nodes.items():
+    for state, nodes in states.items():
+      # Add the state nodes if not folded.
+      for i in nodes:
+        state_id = "{:}_{:}".format(state, i)
+        agent_subgraphs[agent_name].node(
+          state_id, 
+          label=state, 
+          color=STATE_COLOR, 
+          fontcolor=STATE_COLOR,
+          group=state,
+        )
+        # Add it to the relevant rank layer.
+        rank_list["s_{:}".format(i)].append(state_id)        
 
 
   # Add missing links for host layer functions if required.
@@ -765,9 +839,19 @@ def output_graphviz(args, graphviz_data):
     raise ValueError("Invalid Graphviz Data")
 
   if args.output:
-    graphviz_data.render(args.output, view=args.render)  
+    # If rendering or showing with an output file, do so
+    if args.render or args.show:
+      graphviz_data.render(args.output, view=args.show)
+    # if only saving the gv file, do so.
+    else: 
+      graphviz_data.save(args.output)
   else:
-    print("@todo - render without saving to disk?")
+    # If showing but no output gv file, render to a temp. 
+    if args.show:
+      graphviz_data.view(tempfile.mktemp('.gv'))
+    # Otherwise, just print the output to console.
+    else:
+      print(graphviz_data)
 
 def main():
 
