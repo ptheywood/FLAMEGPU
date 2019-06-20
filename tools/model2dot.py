@@ -33,7 +33,7 @@ import xml.etree.ElementTree as ET
 
 import graphviz
 
-DEBUG_COLORS = False
+DEBUG_COLORS = True
 
 
 MESSAGE_COLOR = "green4"
@@ -41,10 +41,12 @@ MESSAGE_SHAPE = "box"
 
 FUNCTION_COLOR = "black"
 FUNCTION_SHAPE = "box"
+FUNCTION_LINK_COLOR = "#000000"
 
 
 STATE_COLOR = "#aaaaaa"
 STATE_SHAPE = "circle"
+STATE_STATE_LINK_COLOR = "#000000"
 
 
 HIDDEN_COLOR = "#ffffff"
@@ -54,6 +56,11 @@ HIDDEN_SHAPE = "point"
 if DEBUG_COLORS:
   HIDDEN_COLOR = "#dddddd"
   HIDDEN_STYLE = None
+
+  FUNCTION_LINK_COLOR = "#ff0000"
+  STATE_STATE_LINK_COLOR = "#00ff00"
+
+
 
 
 # Dictionary of the expected XML namespaces, making search easier
@@ -541,9 +548,9 @@ def generate_graphviz(args, xml):
         state_after = "{:}_{:}".format("host", layerIndex + 1)
 
         # Add a link between the state_before and the function node, 
-        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10")
+        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10", color=FUNCTION_LINK_COLOR)
         # And a link from the function node to the after state.
-        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10")
+        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10", color=FUNCTION_LINK_COLOR)
 
         # Mark off the connection if staying in the same state
         hostLayerFunction_connections[layerIndex] = True
@@ -558,7 +565,7 @@ def generate_graphviz(args, xml):
           state_after = "{:}_{:}".format(state, startLayer+1)
           
           # Add the edge
-          agent_subgraphs[agent_name].edge(state_before, state_after)
+          agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
 
           # Add an invisible node to get vertical alignment across agents
           invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
@@ -580,7 +587,7 @@ def generate_graphviz(args, xml):
         state_before = "{:}_{:}".format("host", startLayer)
         state_after = "{:}_{:}".format("host", startLayer+1)
         # Add the edge
-        hostLayerFunction_subgraph.edge(state_before, state_after)
+        hostLayerFunction_subgraph.edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
 
         # Add an invisible node to get vertical alignment across agents
         invisible_node_key = "invisible_{:}_{:}".format(state, startLayer)
