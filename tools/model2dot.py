@@ -39,6 +39,16 @@ DEBUG_COLORS = False
 STATE_FOLDING = True
 
 
+GV_STYLE_SOLID="solid"
+GV_STYLE_DASHED="dashed"
+GV_STYLE_DOTTED="dotted"
+GV_STYLE_BOLD="bold"
+GV_STYLE_ROUNDED="bold"
+GV_STYLE_FILLED="filled"
+GV_STYLE_STRIPED="striped"
+GV_STYLE_INVIS="invis"
+
+
 MESSAGE_COLOR = "green4"
 MESSAGE_SHAPE = "parallelogram"
 
@@ -63,13 +73,51 @@ END_SHAPE = "octagon"
 END_COLOR = "red"
 
 HIDDEN_COLOR = "#ffffff"
-HIDDEN_STYLE = "invis"
+HIDDEN_STYLE = GV_STYLE_INVIS
 HIDDEN_SHAPE = "point"
 
-HOSTLAYERFUNCTION_LINK_COLOR = "invis"
-HOSTLAYERFUNCTION_STATE_STYLE = "invis"
-HOSTLAYERFUNCTION_STATE_COLOR = "invis"
+HOSTLAYERFUNCTION_LINK_COLOR = GV_STYLE_INVIS
+HOSTLAYERFUNCTION_STATE_STYLE = GV_STYLE_INVIS
+HOSTLAYERFUNCTION_STATE_COLOR = GV_STYLE_INVIS
 HOSTLAYERFUNCTION_STATE_SHAPE = "circle"
+
+CLUSTER_INIT_FUNCTIONS_KEY = "cluster_initFunctions"
+CLUSTER_INIT_FUNCTIONS_LABEL = "FLAME GPU Init Functions"
+CLUSTER_INIT_FUNCTIONS_COLOR = "#ff0000"
+CLUSTER_INIT_FUNCTIONS_STYLE = GV_STYLE_SOLID 
+
+CLUSTER_STEP_FUNCTIONS_KEY = "cluster_stepFunctions"
+CLUSTER_STEP_FUNCTIONS_LABEL = "FLAME GPU STEP Functions"
+CLUSTER_STEP_FUNCTIONS_COLOR = "#00ff00"
+CLUSTER_STEP_FUNCTIONS_STYLE = GV_STYLE_SOLID 
+
+CLUSTER_EXIT_FUNCTIONS_KEY = "cluster_exitFunctions"
+CLUSTER_EXIT_FUNCTIONS_LABEL = "FLAME GPU Exit Functions"
+CLUSTER_EXIT_FUNCTIONS_COLOR = "#0000ff"
+CLUSTER_EXIT_FUNCTIONS_STYLE = GV_STYLE_SOLID 
+
+CLUSTER_HOST_LAYER_FUNCTIONS_KEY = "cluster_hostLayerFunctions"
+CLUSTER_HOST_LAYER_FUNCTIONS_LABEL = "hostLayerFunctions"
+CLUSTER_HOST_LAYER_FUNCTIONS_COLOR = "#ffff00"
+CLUSTER_HOST_LAYER_FUNCTIONS_STYLE = GV_STYLE_SOLID 
+
+
+CLUSTER_ITERATION_GRAPH_KEY = "cluster_iteration_graph"
+CLUSTER_ITERATION_GRAPH_LABEL = "Iteration"
+CLUSTER_ITERATION_GRAPH_COLOR = "#ff00ff"
+CLUSTER_ITERATION_GRAPH_STYLE = GV_STYLE_SOLID 
+
+CLUSTER_FUNCTION_LAYERS_GRAPH_KEY = "cluster_layers_graph"
+CLUSTER_FUNCTION_LAYERS_GRAPH_LABEL = "Function Layers"
+CLUSTER_FUNCTION_LAYERS_GRAPH_COLOR = "#00ffff"
+CLUSTER_FUNCTION_LAYERS_GRAPH_STYLE = GV_STYLE_SOLID 
+
+CLUSTER_AGENT_FUNCTIONS_KEY_PATTERN = "cluster_agent_{:}"
+CLUSTER_AGENT_FUNCTIONS_LABEL_PATTERN = "{:}"
+CLUSTER_AGENT_FUNCTIONS_COLORS = ["#eeeeee", "#dddddd", "#cccccc", "#bbbbbb", "#aaaaaa"]
+CLUSTER_AGENT_FUNCTIONS_STYLES = [GV_STYLE_SOLID]
+
+CLUSTER_PENWIDTH="3"
 
 if DEBUG_COLORS:
   HIDDEN_COLOR = "#dddddd"
@@ -92,6 +140,9 @@ NAMESPACES = {
   "xmml": "http://www.dcs.shef.ac.uk/~paul/XMML",
   "gpu":  "http://www.dcs.shef.ac.uk/~paul/XMMLGPU"
 }
+
+def ith(l, i):
+  return l[i % len(l)]
 
 def verbose_log(args, msg):
   if args.verbose:
@@ -362,11 +413,12 @@ def generate_graphviz(args, xml):
   # if init_functions and len(init_functions) > 0:
   if render_init_functions(args):
     ifg = graphviz.Digraph(
-      name="cluster_initFunctions", 
+      name=CLUSTER_INIT_FUNCTIONS_KEY,
     )
-    ifg.attr(label="initFunctions")
-    ifg.attr(color="blue")
-    ifg.attr(penwidth="3")
+    ifg.attr(label=CLUSTER_INIT_FUNCTIONS_LABEL)
+    ifg.attr(color=CLUSTER_INIT_FUNCTIONS_COLOR)
+    ifg.attr(style=CLUSTER_INIT_FUNCTIONS_STYLE)
+    ifg.attr(penwidth=CLUSTER_PENWIDTH)
 
     # Add node per func
     for func in init_functions:
@@ -379,7 +431,7 @@ def generate_graphviz(args, xml):
         ifg.edge(a, b)
 
     # Add an invisible node.
-    ifg.node("invisible_initFunctions", shape="point", style="invis")
+    ifg.node("invisible_initFunctions", shape="point", style=GV_STYLE_INVIS)
 
     # Add to the main graph
     dot.subgraph(ifg)
@@ -389,11 +441,12 @@ def generate_graphviz(args, xml):
   # if exit_functions and len(exit_functions) > 0:
   if render_exit_functions(args):
     efg = graphviz.Digraph(
-      name="cluster_exitFunctions", 
+      name=CLUSTER_EXIT_FUNCTIONS_KEY, 
     )
-    efg.attr(label="exitFunctions")
-    efg.attr(color="red")
-    efg.attr(penwidth="3")
+    efg.attr(label=CLUSTER_EXIT_FUNCTIONS_LABEL)
+    efg.attr(color=CLUSTER_EXIT_FUNCTIONS_COLOR)
+    efg.attr(style=CLUSTER_EXIT_FUNCTIONS_STYLE)
+    efg.attr(penwidth=CLUSTER_PENWIDTH)
 
     for func in exit_functions:
       efg.node(func, label=func, shape=FUNCTION_SHAPE)
@@ -403,7 +456,7 @@ def generate_graphviz(args, xml):
       for a, b in zip(exit_functions, exit_functions[1:]):
         efg.edge(a, b)
 
-    efg.node("invisible_exitFunctions", shape="point", style="invis")
+    efg.node("invisible_exitFunctions", shape="point", style=GV_STYLE_INVIS)
 
 
     # Add to the main graph
@@ -413,34 +466,37 @@ def generate_graphviz(args, xml):
 
   # Create a subgraph for the agent functions.
   iteration_graph = graphviz.Digraph(
-    name="cluster_iteration_graph"
+    name=CLUSTER_ITERATION_GRAPH_KEY
   )
-  iteration_graph.attr(label="Iteration")
-  iteration_graph.attr(color="cyan")
-  iteration_graph.attr(penwidth="3")
-  iteration_graph.attr(rankdir="RL")
+  iteration_graph.attr(label=CLUSTER_ITERATION_GRAPH_LABEL)
+  iteration_graph.attr(color=CLUSTER_ITERATION_GRAPH_COLOR)
+  iteration_graph.attr(style=CLUSTER_ITERATION_GRAPH_STYLE)
+  iteration_graph.attr(penwidth=CLUSTER_PENWIDTH)
+  # iteration_graph.attr(rankdir="RL")
 
-  iteration_graph.node("invisible_iteration_graph", shape="point", style="invis")
+  iteration_graph.node("invisible_iteration_graph", shape="point", style=GV_STYLE_INVIS)
 
   layers_graph = graphviz.Digraph(
-    name="cluster_layers_graph"
+    name=CLUSTER_FUNCTION_LAYERS_GRAPH_KEY
   )
-  layers_graph.attr(label="Function Layers")
-  layers_graph.attr(color="blue")
-  layers_graph.attr(penwidth="3")
-  layers_graph.attr(rankdir="RL")
+  layers_graph.attr(label=CLUSTER_FUNCTION_LAYERS_GRAPH_LABEL)
+  layers_graph.attr(color=CLUSTER_FUNCTION_LAYERS_GRAPH_COLOR)
+  layers_graph.attr(style=CLUSTER_FUNCTION_LAYERS_GRAPH_STYLE)
+  layers_graph.attr(penwidth=CLUSTER_PENWIDTH)
+  # layers_graph.attr(rankdir="RL")
 
-  layers_graph.node("invisible_layers_graph", shape="point", style="invis")
+  layers_graph.node("invisible_layers_graph", shape="point", style=GV_STYLE_INVIS)
 
   # If there are any step functions, add a subgraph.
   # if step_functions and len(step_functions) > 0:
   if render_step_functions(args):
     sfg = graphviz.Digraph(
-      name="cluster_stepFunctions", 
+      name=CLUSTER_STEP_FUNCTIONS_KEY, 
     )
-    sfg.attr(label="stepFunctions")
-    sfg.attr(color="brown")
-    sfg.attr(penwidth="3")
+    sfg.attr(label=CLUSTER_STEP_FUNCTIONS_LABEL)
+    sfg.attr(color=CLUSTER_STEP_FUNCTIONS_COLOR)
+    sfg.attr(style=CLUSTER_STEP_FUNCTIONS_STYLE)
+    sfg.attr(penwidth=CLUSTER_PENWIDTH)
 
     for func in step_functions:
       sfg.node(func, shape=FUNCTION_SHAPE)
@@ -450,7 +506,7 @@ def generate_graphviz(args, xml):
       for a, b in zip(step_functions, step_functions[1:]):
         sfg.edge(a, b)
 
-    sfg.node("invisible_stepFunctions", shape="point", style="invis")
+    sfg.node("invisible_stepFunctions", shape="point", style=GV_STYLE_INVIS)
 
     # Add to the main graph
     iteration_graph.subgraph(sfg)
@@ -478,11 +534,12 @@ def generate_graphviz(args, xml):
   # @todo - support multiple connection states per layer.
   hostLayerFunction_connections = [False]* layer_count
   hostLayerFunction_subgraph = graphviz.Digraph(
-    name="cluster_hostLayerFunctions"  
+    name=CLUSTER_HOST_LAYER_FUNCTIONS_KEY  
   )
-  hostLayerFunction_subgraph.attr(label="hostLayerFunctions")
-  hostLayerFunction_subgraph.attr(color="yellow")
-  hostLayerFunction_subgraph.attr(penwidth="3")
+  hostLayerFunction_subgraph.attr(label=CLUSTER_HOST_LAYER_FUNCTIONS_LABEL)
+  hostLayerFunction_subgraph.attr(color=CLUSTER_HOST_LAYER_FUNCTIONS_COLOR)
+  hostLayerFunction_subgraph.attr(style=CLUSTER_HOST_LAYER_FUNCTIONS_STYLE)
+  hostLayerFunction_subgraph.attr(penwidth=CLUSTER_PENWIDTH)
 
   if len(host_layer_functions) > 0:
     label=""
@@ -501,11 +558,14 @@ def generate_graphviz(args, xml):
       rank_list["s_{:}".format(i)].append(key)
 
 
-  for agent_name in agent_names:
+  for agent_idx, agent_name in enumerate(agent_names):
     agent_subgraphs[agent_name] = graphviz.Digraph(
-      name="cluster_agent_{:}".format(agent_name)
+      name=CLUSTER_AGENT_FUNCTIONS_KEY_PATTERN.format(agent_name)
     )
-    agent_subgraphs[agent_name].attr(label=agent_name)
+    agent_subgraphs[agent_name].attr(label=CLUSTER_AGENT_FUNCTIONS_LABEL_PATTERN.format(agent_name))
+    agent_subgraphs[agent_name].attr(color=ith(CLUSTER_AGENT_FUNCTIONS_COLORS, agent_idx))
+    agent_subgraphs[agent_name].attr(style=ith(CLUSTER_AGENT_FUNCTIONS_STYLES, agent_idx))
+    agent_subgraphs[agent_name].attr(penwidth=CLUSTER_PENWIDTH)
     # Also create a data structure to show if a state/function is used or not. 
     agent_state_connections[agent_name] = {}
     # list of nodes to create per agent state
@@ -771,59 +831,59 @@ def generate_graphviz(args, xml):
     dot.edge(
       "invisible_initFunctions",
       "invisible_iteration_graph", 
-      ltail="cluster_initFunctions", 
-      lhead="cluster_iteration_graph",
+      ltail=CLUSTER_INIT_FUNCTIONS_KEY, 
+      lhead=CLUSTER_ITERATION_GRAPH_KEY,
     )
   if render_step_functions(args):
     # iteration to step
     dot.edge(
       "invisible_iteration_graph", 
       "invisible_stepFunctions",
-      ltail="cluster_iteration_graph",
-      lhead="cluster_stepFunctions", 
+      ltail=CLUSTER_ITERATION_GRAPH_KEY,
+      lhead=CLUSTER_STEP_FUNCTIONS_KEY, 
     )
     # step to layers
     dot.edge(
       "invisible_stepFunctions",
       "invisible_layers_graph", 
-      ltail="cluster_stepFunctions", 
-      lhead="cluster_layers_graph",
+      ltail=CLUSTER_STEP_FUNCTIONS_KEY, 
+      lhead=CLUSTER_FUNCTION_LAYERS_GRAPH_KEY,
     )
   # else:
     # iteration to layers
     # dot.edge(
     #   "invisible_iteration_graph", 
     #   "invisible_layers_graph",
-    #   ltail="cluster_iteration_graph",
-    #   lhead="cluster_layers_graph", 
+    #   ltail=CLUSTER_ITERATION_GRAPH_KEY,
+    #   lhead=CLUSTER_FUNCTION_LAYERS_GRAPH_KEY, 
     # )
 
   if render_exit_functions(args):
     dot.edge(
       "invisible_iteration_graph",
       "invisible_exitFunctions", 
-      ltail="cluster_iteration_graph", 
-      lhead="cluster_exitFunctions",
+      ltail=CLUSTER_ITERATION_GRAPH_KEY, 
+      lhead= CLUSTER_EXIT_FUNCTIONS_KEY,
     )
 
 
   # Calculate where start and end should connect to. Default to the iteration subgraph cluster
   start_dest_node = "invisible_iteration_graph"
-  start_dest_cluster = "cluster_iteration_graph"
+  start_dest_cluster = CLUSTER_ITERATION_GRAPH_KEY
   end_source_node = "invisible_iteration_graph"
-  end_source_cluster = "cluster_iteration_graph"
+  end_source_cluster = CLUSTER_ITERATION_GRAPH_KEY
 
   # If we have an init, connect the start to init.
   if render_init_functions(args):
     start_dest_node = "invisible_initFunctions"
-    start_dest_cluster = "cluster_initFunctions"
+    start_dest_cluster = CLUSTER_INIT_FUNCTIONS_KEY
 
   # if render_step_functions(args):
 
   # If we have exit functions, the end connects to the exit.
   if render_exit_functions(args):
     end_source_node = "invisible_exitFunctions"
-    end_source_cluster = "cluster_exitFunctions"
+    end_source_cluster = CLUSTER_EXIT_FUNCTIONS_KEY
 
   # Actually add the start / end links.
   dot.edge(
