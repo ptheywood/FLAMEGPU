@@ -65,14 +65,20 @@ START_LABEL = "START"
 START_SHAPE = "oval"
 START_COLOR = "darkgreen"
 
-END_KEY = "END"
-END_LABEL = "END"
-END_SHAPE = "octagon"
-END_COLOR = "red"
+STOP_KEY = "STOP"
+STOP_LABEL = "STOP"
+STOP_SHAPE = "octagon"
+STOP_COLOR = "red"
 
 HIDDEN_COLOR = "#ffffff"
 HIDDEN_STYLE = GV_STYLE_INVIS
 HIDDEN_SHAPE = "point"
+HIDDEN_LABEL = ""
+HIDDEN_LABEL_START = "s"
+HIDDEN_LABEL_END = "e"
+HIDDEN_COLOR_START = HIDDEN_COLOR
+HIDDEN_COLOR_END = HIDDEN_COLOR
+
 
 HOSTLAYERFUNCTION_LINK_COLOR = GV_STYLE_INVIS
 HOSTLAYERFUNCTION_STATE_STYLE = GV_STYLE_INVIS
@@ -119,15 +125,18 @@ CLUSTER_PENWIDTH="3"
 
 if DEBUG_COLORS:
   HIDDEN_COLOR = "#dddddd"
-  HIDDEN_STYLE = None
+  HIDDEN_STYLE = GV_STYLE_SOLID
+  HIDDEN_SHAPE = "star"
+  HIDDEN_COLOR_START = "#00ff00"
+  HIDDEN_COLOR_END = "#0000ff"
 
   FUNCTION_LINK_COLOR = "#ff0000"
   STATE_STATE_LINK_COLOR = "#00ff00"
 
 
   HOSTLAYERFUNCTION_LINK_COLOR = "#ff00ff"
-  HOSTLAYERFUNCTION_STATE_STYLE = None
-  HOSTLAYERFUNCTION_STATE_COLOR = "ff00ff"
+  HOSTLAYERFUNCTION_STATE_STYLE = GV_STYLE_SOLID
+  HOSTLAYERFUNCTION_STATE_COLOR = "#ff00ff"
   HOSTLAYERFUNCTION_STATE_SHAPE = "circle"
 
 
@@ -401,64 +410,113 @@ def generate_graphviz(args, xml):
     color=START_COLOR,
   )
   dot.node(
-    END_KEY, 
-    label=END_LABEL,
-    shape=END_SHAPE,
-    color=END_COLOR,
+    STOP_KEY, 
+    label=STOP_LABEL,
+    shape=STOP_SHAPE,
+    color=STOP_COLOR,
   )
 
   # If there are any init functions, add a subgraph.
   # if init_functions and len(init_functions) > 0:
   if render_init_functions(args):
-    ifg = graphviz.Digraph(
-      name=CLUSTER_INIT_FUNCTIONS_KEY,
-    )
-    ifg.attr(label=CLUSTER_INIT_FUNCTIONS_LABEL)
-    ifg.attr(color=CLUSTER_INIT_FUNCTIONS_COLOR)
-    ifg.attr(style=CLUSTER_INIT_FUNCTIONS_STYLE)
-    ifg.attr(penwidth=CLUSTER_PENWIDTH)
+    if len(init_functions) > 0:
+      ifg = graphviz.Digraph(
+        name=CLUSTER_INIT_FUNCTIONS_KEY,
+      )
+      ifg.attr(label=CLUSTER_INIT_FUNCTIONS_LABEL)
+      ifg.attr(color=CLUSTER_INIT_FUNCTIONS_COLOR)
+      ifg.attr(style=CLUSTER_INIT_FUNCTIONS_STYLE)
+      ifg.attr(penwidth=CLUSTER_PENWIDTH)
 
-    # Add node per func
-    for func in init_functions:
-      ifg.node(func, shape=FUNCTION_SHAPE)
-      # @todo edges.
+      # Add node per func
+      for func in init_functions:
+        ifg.node(func, shape=FUNCTION_SHAPE)
+        # @todo edges.
 
-    # Add edge between subsequent nodes, if needed.
-    if len(init_functions) > 1:
+      # Add edge between subsequent nodes, if needed.
       for a, b in zip(init_functions, init_functions[1:]):
         ifg.edge(a, b)
 
-    # Add an invisible node.
-    ifg.node("invisible_initFunctions", shape="point", style=GV_STYLE_INVIS)
+      # Add an invisible nodes
+      ifg.node(
+        "invisible_initFunctions_start",
+        label=HIDDEN_LABEL_START,
+        color=HIDDEN_COLOR_START,
+        shape=HIDDEN_SHAPE,
+        style=HIDDEN_STYLE
+      )
+      ifg.node(
+        "invisible_initFunctions_end",
+        label=HIDDEN_LABEL_END,
+        color=HIDDEN_COLOR_END,
+        shape=HIDDEN_SHAPE,
+        style=HIDDEN_STYLE
+      )
+      ifg.edge(
+        "invisible_initFunctions_start",
+        init_functions[0],
+        color=HIDDEN_COLOR_START,
+        style=HIDDEN_STYLE
+      )
+      ifg.edge(
+        init_functions[-1],
+        "invisible_initFunctions_end",
+        color=HIDDEN_COLOR_END,
+        style=HIDDEN_STYLE
+      )
 
-    # Add to the main graph
-    dot.subgraph(ifg)
+      # Add to the main graph
+      dot.subgraph(ifg)
 
 
   # If there are any exit functions, add a subgraph.
   # if exit_functions and len(exit_functions) > 0:
   if render_exit_functions(args):
-    efg = graphviz.Digraph(
-      name=CLUSTER_EXIT_FUNCTIONS_KEY, 
-    )
-    efg.attr(label=CLUSTER_EXIT_FUNCTIONS_LABEL)
-    efg.attr(color=CLUSTER_EXIT_FUNCTIONS_COLOR)
-    efg.attr(style=CLUSTER_EXIT_FUNCTIONS_STYLE)
-    efg.attr(penwidth=CLUSTER_PENWIDTH)
+    if len(exit_functions) > 0:
+      efg = graphviz.Digraph(
+        name=CLUSTER_EXIT_FUNCTIONS_KEY, 
+      )
+      efg.attr(label=CLUSTER_EXIT_FUNCTIONS_LABEL)
+      efg.attr(color=CLUSTER_EXIT_FUNCTIONS_COLOR)
+      efg.attr(style=CLUSTER_EXIT_FUNCTIONS_STYLE)
+      efg.attr(penwidth=CLUSTER_PENWIDTH)
 
-    for func in exit_functions:
-      efg.node(func, label=func, shape=FUNCTION_SHAPE)
-    
-    # Add edge between subsequent nodes, if needed.
-    if len(exit_functions) > 1:
+      for func in exit_functions:
+        efg.node(func, label=func, shape=FUNCTION_SHAPE)
+      
+      # Add edge between subsequent nodes, if needed.
       for a, b in zip(exit_functions, exit_functions[1:]):
         efg.edge(a, b)
 
-    efg.node("invisible_exitFunctions", shape="point", style=GV_STYLE_INVIS)
+      efg.node(
+        "invisible_exitFunctions_start",
+        label=HIDDEN_LABEL_START,
+        color=HIDDEN_COLOR_START,
+        shape=HIDDEN_SHAPE,
+        style=HIDDEN_STYLE
+      )
+      efg.node(
+        "invisible_exitFunctions_end",
+        label=HIDDEN_LABEL_END,
+        color=HIDDEN_COLOR_END,
+        shape=HIDDEN_SHAPE,
+        style=HIDDEN_STYLE
+      )
+      efg.edge(
+        "invisible_exitFunctions_start",
+        exit_functions[0],
+        color=HIDDEN_COLOR_START,
+        style=HIDDEN_STYLE
+      )
+      efg.edge(
+        exit_functions[-1],
+        "invisible_exitFunctions_end",
+        color=HIDDEN_COLOR_END,
+        style=HIDDEN_STYLE
+      )
 
-
-    # Add to the main graph
-    dot.subgraph(efg)
+      # Add to the main graph
+      dot.subgraph(efg)
 
 
 
@@ -472,7 +530,22 @@ def generate_graphviz(args, xml):
   iteration_graph.attr(penwidth=CLUSTER_PENWIDTH)
   # iteration_graph.attr(rankdir="RL")
 
-  iteration_graph.node("invisible_iteration_graph", shape="point", style=GV_STYLE_INVIS)
+  iteration_graph.node(
+    "invisible_iteration_graph_start",
+    label=HIDDEN_LABEL_START,
+    color=HIDDEN_COLOR_START,
+    shape=HIDDEN_SHAPE,
+    style=HIDDEN_STYLE
+  )
+  iteration_graph.node(
+    "invisible_iteration_graph_end",
+    label=HIDDEN_LABEL_END,
+    color=HIDDEN_COLOR_END,
+    shape=HIDDEN_SHAPE,
+    style=HIDDEN_STYLE
+  )
+
+
 
   layers_graph = graphviz.Digraph(
     name=CLUSTER_FUNCTION_LAYERS_GRAPH_KEY
@@ -483,31 +556,101 @@ def generate_graphviz(args, xml):
   layers_graph.attr(penwidth=CLUSTER_PENWIDTH)
   # layers_graph.attr(rankdir="RL")
 
-  layers_graph.node("invisible_layers_graph", shape="point", style=GV_STYLE_INVIS)
+  layers_graph.node(
+    "invisible_layers_graph_start",
+    label=HIDDEN_LABEL_START,
+    color=HIDDEN_COLOR_START,
+    shape=HIDDEN_SHAPE,
+    style=HIDDEN_STYLE
+  )
+  layers_graph.node(
+    "invisible_layers_graph_end",
+    label=HIDDEN_LABEL_END,
+    color=HIDDEN_COLOR_END,
+    shape=HIDDEN_SHAPE,
+    style=HIDDEN_STYLE
+  )
+
 
   # If there are any step functions, add a subgraph.
   # if step_functions and len(step_functions) > 0:
   if render_step_functions(args):
-    sfg = graphviz.Digraph(
-      name=CLUSTER_STEP_FUNCTIONS_KEY, 
-    )
-    sfg.attr(label=CLUSTER_STEP_FUNCTIONS_LABEL)
-    sfg.attr(color=CLUSTER_STEP_FUNCTIONS_COLOR)
-    sfg.attr(style=CLUSTER_STEP_FUNCTIONS_STYLE)
-    sfg.attr(penwidth=CLUSTER_PENWIDTH)
+    if len(step_functions) > 0:
+      sfg = graphviz.Digraph(
+        name=CLUSTER_STEP_FUNCTIONS_KEY, 
+      )
+      sfg.attr(label=CLUSTER_STEP_FUNCTIONS_LABEL)
+      sfg.attr(color=CLUSTER_STEP_FUNCTIONS_COLOR)
+      sfg.attr(style=CLUSTER_STEP_FUNCTIONS_STYLE)
+      sfg.attr(penwidth=CLUSTER_PENWIDTH)
 
-    for func in step_functions:
-      sfg.node(func, shape=FUNCTION_SHAPE)
-    
-    # Add edge between subsequent nodes, if needed.
-    if len(step_functions) > 1:
+      for func in step_functions:
+        sfg.node(func, shape=FUNCTION_SHAPE)
+      
+      # Add edge between subsequent nodes, if needed.
       for a, b in zip(step_functions, step_functions[1:]):
         sfg.edge(a, b)
 
-    sfg.node("invisible_stepFunctions", shape="point", style=GV_STYLE_INVIS)
+      # sfg.node("invisible_stepFunctions", shape="point", style=GV_STYLE_INVIS)
+      sfg.node(
+        "invisible_stepFunctions_start",
+        label=HIDDEN_LABEL_START,
+        color=HIDDEN_COLOR_START,
+        shape=HIDDEN_SHAPE,
+        style=HIDDEN_STYLE
+      )
+      sfg.node(
+        "invisible_stepFunctions_end",
+        label=HIDDEN_LABEL_END,
+        color=HIDDEN_COLOR_END,
+        shape=HIDDEN_SHAPE,
+        style=HIDDEN_STYLE
+      )
+      sfg.edge(
+        "invisible_stepFunctions_start",
+        step_functions[0],
+        color=HIDDEN_COLOR_START,
+        style=HIDDEN_STYLE
+      )
+      sfg.edge(
+        step_functions[-1],
+        "invisible_stepFunctions_end",
+        color=HIDDEN_COLOR_END,
+        style=HIDDEN_STYLE
+      )
 
-    # Add to the main graph
-    iteration_graph.subgraph(sfg)
+      # Also add an edge from the start of the iteration to the start of the step.
+      iteration_graph.edge(
+        "invisible_iteration_graph_start",
+        "invisible_stepFunctions_start",
+        color=HIDDEN_COLOR_START,
+        style=HIDDEN_STYLE
+      )
+      # and end of the step to the start of the layers.
+      iteration_graph.edge(
+        "invisible_stepFunctions_end",
+        "invisible_layers_graph_start",
+        # "invisible_iteration_graph_end",
+        color=HIDDEN_COLOR_END,
+        style=HIDDEN_STYLE
+      )
+
+      # Add to the main graph
+      iteration_graph.subgraph(sfg)
+
+  # Add edges linking the iteration graph and layer graph.
+  iteration_graph.edge(
+    "invisible_iteration_graph_start",
+    "invisible_layers_graph_start",
+    color=HIDDEN_COLOR_START,
+    style=HIDDEN_STYLE
+  )
+  iteration_graph.edge(
+    "invisible_layers_graph_end",
+    "invisible_iteration_graph_end",
+    color=HIDDEN_COLOR_END,
+    style=HIDDEN_STYLE
+  )
 
 
   layer_count = len(function_layers)
@@ -555,6 +698,21 @@ def generate_graphviz(args, xml):
         style=HOSTLAYERFUNCTION_STATE_STYLE,
       )
       rank_list["s_{:}".format(i)].append(key)
+
+    # Add an invisible link between the start of the layers graph and the first host layer function state node + last to end.
+    layers_graph.edge(
+      "invisible_layers_graph_start",
+      "{:}_{:}".format("host", 0),
+      color=HIDDEN_COLOR_START,
+      style=HIDDEN_STYLE
+    )
+    layers_graph.edge(
+      "{:}_{:}".format("host", layer_count),
+      "invisible_layers_graph_end",
+      color=HIDDEN_COLOR_END,
+      style=HIDDEN_STYLE
+    )
+
 
 
   for agent_idx, agent_name in enumerate(agent_names):
@@ -751,7 +909,21 @@ def generate_graphviz(args, xml):
           group=state,
         )
         # Add it to the relevant rank layer.
-        rank_list["s_{:}".format(i)].append(state_id)        
+        rank_list["s_{:}".format(i)].append(state_id)     
+
+      # Add an invisible link between the start of the layers graph and the first host layer function state node + last to end.
+      layers_graph.edge(
+        "invisible_layers_graph_start",
+        "{:}_{:}".format(state, 0),
+        color=HIDDEN_COLOR_START,
+        style=HIDDEN_STYLE
+      )
+      layers_graph.edge(
+        "{:}_{:}".format(state, layer_count),
+        "invisible_layers_graph_end",
+        color=HIDDEN_COLOR_END,
+        style=HIDDEN_STYLE
+      )   
 
 
   # Add missing links for host layer functions if required.
@@ -825,66 +997,58 @@ def generate_graphviz(args, xml):
   dot.subgraph(iteration_graph)
 
 
+  # Make a subgraph for cluster ordering
+  # Each cluster needs a start and an end node for this to work. 
+  # With invisible links between the inviisble start and the first actual element (s0) etc. 
+  # And invisible link between last real and invisible end.
+  # Then each cluster needs to be linked together in order with invisible links / real links with head/tail specifications.
 
+  # Start -> init / iterations
+  # init -> iteration
+
+  # iteration_start -> Step_start
+  # Step_end -> layers_start
+  # layers_start -> hostlayers_start
+  # layers_start -> each agent state 0.
+  # each agebt state N -> layers_end
+  # hostlayers_end -> layers_end
+  # layers_end -> exit_start
+  # exit_end -> stop/end.
 
 
   # Connect the clusters.
   if render_init_functions(args):
     dot.edge(
-      "invisible_initFunctions",
-      "invisible_iteration_graph", 
+      "invisible_initFunctions_end",
+      "invisible_iteration_graph_start", 
       ltail=CLUSTER_INIT_FUNCTIONS_KEY, 
       lhead=CLUSTER_ITERATION_GRAPH_KEY,
     )
-  if render_step_functions(args):
-    # iteration to step
-    dot.edge(
-      "invisible_iteration_graph", 
-      "invisible_stepFunctions",
-      ltail=CLUSTER_ITERATION_GRAPH_KEY,
-      lhead=CLUSTER_STEP_FUNCTIONS_KEY, 
-    )
-    # step to layers
-    dot.edge(
-      "invisible_stepFunctions",
-      "invisible_layers_graph", 
-      ltail=CLUSTER_STEP_FUNCTIONS_KEY, 
-      lhead=CLUSTER_FUNCTION_LAYERS_GRAPH_KEY,
-    )
-  # else:
-    # iteration to layers
-    # dot.edge(
-    #   "invisible_iteration_graph", 
-    #   "invisible_layers_graph",
-    #   ltail=CLUSTER_ITERATION_GRAPH_KEY,
-    #   lhead=CLUSTER_FUNCTION_LAYERS_GRAPH_KEY, 
-    # )
-
   if render_exit_functions(args):
     dot.edge(
-      "invisible_iteration_graph",
-      "invisible_exitFunctions", 
+      "invisible_iteration_graph_end",
+      "invisible_exitFunctions_start", 
       ltail=CLUSTER_ITERATION_GRAPH_KEY, 
       lhead= CLUSTER_EXIT_FUNCTIONS_KEY,
     )
 
 
   # Calculate where start and end should connect to. Default to the iteration subgraph cluster
-  start_dest_node = "invisible_iteration_graph"
+  start_dest_node = "invisible_iteration_graph_start"
   start_dest_cluster = CLUSTER_ITERATION_GRAPH_KEY
-  end_source_node = "invisible_iteration_graph"
+  end_source_node = "invisible_iteration_graph_end"
   end_source_cluster = CLUSTER_ITERATION_GRAPH_KEY
 
   # If we have an init, connect the start to init.
   if render_init_functions(args):
-    start_dest_node = "invisible_initFunctions"
+    start_dest_node = "invisible_initFunctions_start"
     start_dest_cluster = CLUSTER_INIT_FUNCTIONS_KEY
 
   # if render_step_functions(args):
 
   # If we have exit functions, the end connects to the exit.
   if render_exit_functions(args):
-    end_source_node = "invisible_exitFunctions"
+    end_source_node = "invisible_exitFunctions_end"
     end_source_cluster = CLUSTER_EXIT_FUNCTIONS_KEY
 
   # Actually add the start / end links.
@@ -896,7 +1060,7 @@ def generate_graphviz(args, xml):
   )
   dot.edge(
     end_source_node, 
-    END_KEY,
+    STOP_KEY,
     ltail=end_source_cluster,
     group="outer",
   )
