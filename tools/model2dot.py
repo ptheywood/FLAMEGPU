@@ -9,13 +9,11 @@
 # @todo - remove UISS specialisation to merge back.
 # @todo - probably better to build a graph structure in python, then traverse it to produce the graphviz? 
 # @todo - tidy
-# @todo - group for vertical alignment. Keratinocyte is an example. Should use the same group as the ancestor state, unless there are 2 childs of that state.
-# @todo - order is right to left not left to right?
+# @todo - Improve vertical alignment, though its reasonable now.
 # @todo - globalConditions - add a decision box indicating if the func should be used or skipped
 # @todo - localConditions - add a decision box indicating the condition.
-# @todo - handle terminating paths. I.e. Keratinocyte migrate? / resolve, where currenlty a real-link is drawn even though it is not necesary. I.e. resolve state all immediately feeds through output_location into default
+# @todo - terminating paths - highlight impossible sections of the graph
 # @todo - fix wiggles
-# @todo - stable marriage as good example of conditional.
 # @todo - key
 # @todo - positioning of init functions etc.
 
@@ -32,6 +30,7 @@ import tempfile
 
 # Config options
 DEBUG_COLORS = False
+DEBUG_LABLES = True
 STATE_FOLDING = True
 USE_ORTHO_SPLINES = True
 USE_PORTS = False
@@ -796,7 +795,6 @@ def generate_graphviz(args, xml):
           headport=GV_PORT_N,
         )
 
-      # sfg.node("invisible_stepFunctions", shape="point", style=GV_STYLE_INVIS)
       sfg.node(
         "invisible_stepFunctions_start",
         label=HIDDEN_LABEL_START,
@@ -953,7 +951,7 @@ def generate_graphviz(args, xml):
     # Add each state once per layer + 1
     for state in agent_states[agent_name]:
       agent_state_connections[agent_name][state] = [{"direct": False, "out": False, "in": False} for i in range((layer_count + 1))]
-      agent_state_nodes[agent_name][state] = list(range(layer_count + 1))
+      agent_state_nodes[agent_name][state] = {x:{"invisible": False} for x in range(layer_count + 1)}
       
 
   # For each function in each layer
@@ -1034,7 +1032,8 @@ def generate_graphviz(args, xml):
         # Indicate that the state has an incoming / outgoing edge.
         edge_group = None
         edge_weight = None
-        if function_obj["currentState"] == function_obj["nextState"]:
+        # If the function is direct, and there is no conditions on the function mark this case.
+        if function_obj["currentState"] == function_obj["nextState"]:# and function_obj["condition"] is None:
           agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["direct"] = True
           edge_group = function_obj["currentState"]
           edge_weight = VERT_EDGE_WEIGHT
@@ -1141,56 +1140,52 @@ def generate_graphviz(args, xml):
         rank_list["f_{:}".format(layerIndex)].append(function_name)
 
   # Add missing links and find foldable LINKS
-  foldable_links = OrderedDict()
+  foldable_state_state_links = OrderedDict()
+  state_state_links_to_add = OrderedDict()
   # Should refactor this so that a dag is produced between states, that can be used for auto collapse, rather than this not-ideal datastructure.
   for agent_name in agent_names:
-    foldable_links[agent_name] = {}
+    foldable_state_state_links[agent_name] = {}
+    state_state_links_to_add[agent_name] = {}
     for state in agent_states[agent_name]:
-      foldable_links[agent_name][state] = []
+      foldable_state_state_links[agent_name][state] = []
+      state_state_links_to_add[agent_name][state] = []
+      prev_invisible = False
       for startLayer, connection_info in enumerate(agent_state_connections[agent_name][state]):
-        edge_weight = VERT_EDGE_WEIGHT
         if startLayer != len(agent_state_connections[agent_name][state]) - 1:
-          state_before = "{:}_{:}".format(state, startLayer)
-          state_after = "{:}_{:}".format(state, startLayer+1)
-          # print(connection_info)
-          # If any part of connection info is true, we need the node to render.
-          # If direct is true, there is already an edge.
 
-          if connection_info["direct"]:
-            # print("Direct connection between state_before and state_after")
-            pass # do nothing.
-          # elif not connection_info["direct"] and not connection_info["out"] and not connection_info["in"]:
-          elif not any(connection_info.values()):
-            if STATE_FOLDING :
-              # Mark as foldable.
-              foldable_links[agent_name][state].append((startLayer, startLayer+1))
+          # If nothing goes in or out of the state pair, mark as foldable (or render)
+          if not any(connection_info.values()):
+            # If in an invalid chain, make it invisible and remove the node?
+            if prev_invisible:
+                state_state_links_to_add[agent_name][state].append(((startLayer, startLayer+1, True)))
+                prev_invisible = True
+                # Flag the node as invisible, to maintain structure but not render the impossible state.
+                agent_state_nodes[agent_name][state][startLayer]["invisible"] = True
             else:
-              # Otherwise add a link.
-              agent_subgraphs[agent_name].edge(
-                state_before, 
-                state_after, 
-                color=STATE_STATE_LINK_COLOR,
-                tailport=GV_PORT_S,
-                headport=GV_PORT_N,
-                weight=edge_weight,
-              )
+              if STATE_FOLDING:
+                foldable_state_state_links[agent_name][state].append((startLayer, startLayer+1))
+              else:
+                state_state_links_to_add[agent_name][state].append(((startLayer, startLayer+1, False)))
+                prev_invisible = False
           else:
-            # @todo - this is where we can eliminate impossible state transitions (somehow) Need to consider condtional functions.
-            # There should always be *exactly* one non-conditional outgoing link from a node
-            # But if 
-            agent_subgraphs[agent_name].edge(
-              state_before, 
-              state_after, 
-              color=STATE_STATE_LINK_COLOR,
-              tailport=GV_PORT_S,
-              headport=GV_PORT_N,
-              weight=edge_weight,
-            )
+            # If there is a non-conditional linear s0->f->s1 relationship, we do not need a link..
+            if connection_info["direct"]:
+              prev_invisible = False
+            # If there is a non-conditional, non-direct output we do not need a visible edge. BUT having an invisible edge helps with alignment it seems.
+            elif connection_info["out"]:
+              state_state_links_to_add[agent_name][state].append(((startLayer, startLayer+1, True)))
+              prev_invisible = True
+            else:
+              state_state_links_to_add[agent_name][state].append(((startLayer, startLayer+1, False)))
+              prev_invisible = False
+
+
+
 
   # The list of foldable links is in order per agent/state pair.
   # Iterate the lists pairwise, comparing the relevant components, building the list of newlinks.
   # There must be a beter way of doing this.
-  for agent_name, states in foldable_links.items():
+  for agent_name, states in foldable_state_state_links.items():
     for state, ijlist in states.items():
       new_links = []
       # Build a list of state nodes which are not needed
@@ -1212,20 +1207,32 @@ def generate_graphviz(args, xml):
 
       # For each new link, add it.
       for link in new_links:
-        state_before = "{:}_{:}".format(state, link[0])
-        state_after = "{:}_{:}".format(state, link[1])
-        agent_subgraphs[agent_name].edge(
-          state_before, 
-          state_after, 
-          color=STATE_STATE_LINK_COLOR,
-          tailport=GV_PORT_S,
-          headport=GV_PORT_N,
-        )
+        state_state_links_to_add[agent_name][state].append((link[0], link[1], False)) 
 
       # Remove each folded state from the global list of state nodes to create.
       for i in folded_states:
-        agent_state_nodes[agent_name][state].remove(i)
+        agent_state_nodes[agent_name][state].pop(i)
 
+
+  # Add state links.
+  for agent_name, states in state_state_links_to_add.items():
+    edge_weight = VERT_EDGE_WEIGHT
+    for state, edges in states.items():
+      for edge in sorted(edges): # sort for better debugging.
+        state_before = "{:}_{:}".format(state, edge[0])
+        state_after = "{:}_{:}".format(state, edge[1])
+        # If the edge is invisible, make it so, but with a strong weight still;
+        edge_style = GV_STYLE_SOLID
+        if edge[2]:
+          edge_style = GV_STYLE_INVIS
+        agent_subgraphs[agent_name].edge(
+            state_before, 
+            state_after, 
+            color=STATE_STATE_LINK_COLOR,
+            style=edge_style,
+            tailport=GV_PORT_S,
+            headport=GV_PORT_N,
+          )
 
   # Add state nodes.
   for agent_name, states in agent_state_nodes.items():
@@ -1233,12 +1240,20 @@ def generate_graphviz(args, xml):
       # Add the state nodes if not folded.
       for i in nodes:
         state_id = "{:}_{:}".format(state, i)
+        state_label = state
+        if DEBUG_LABLES:
+          state_label = state_id
+        node_style = GV_STYLE_SOLID
+        if "invisible" in nodes[i] and nodes[i]["invisible"]:
+          node_style = GV_STYLE_INVIS
+
         agent_subgraphs[agent_name].node(
           state_id, 
-          label=state, 
+          label=state_label, 
           color=STATE_COLOR, 
           fontcolor=STATE_COLOR,
           group=state,
+          style=node_style
         )
         # Add it to the relevant rank layer.
         rank_list["s_{:}".format(i)].append(state_id)     
