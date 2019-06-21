@@ -388,7 +388,7 @@ def generate_graphviz(args, xml):
   dot.body.append("\tcompound=true;")
   dot.body.append("\tsplines=ortho;")
   # dot.body.append("\trankdir=ortho;")
-  dot.body.append("\tordering=out;")
+  # dot.body.append("\tordering=out;")
 
   # Populate the digraph.
 
@@ -541,13 +541,14 @@ def generate_graphviz(args, xml):
 
   if len(host_layer_functions) > 0:
     label=""
+    group="host_layer_group"
     for i in range(layer_count + 1):
       # Add a (hidden) node per state.
       key="{:}_{:}".format("host", i)
       hostLayerFunction_subgraph.node(
         key, 
         label=label, 
-        group=label,
+        group=group,
         color=HOSTLAYERFUNCTION_STATE_COLOR, 
         fontcolor=HOSTLAYERFUNCTION_STATE_COLOR,
         shape=HOSTLAYERFUNCTION_STATE_SHAPE,
@@ -600,15 +601,25 @@ def generate_graphviz(args, xml):
         # print(layerIndex, function_name)
         # print("  ", state_before, state_after)
         # Indicate that the state has an incoming / outgoing edge.
+        edge_group = None
         if function_obj["currentState"] == function_obj["nextState"]:
           agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["direct"] = True
+          edge_group = function_obj["currentState"]
         agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["out"] = True
         agent_state_connections[agent_name][function_obj["nextState"]][layerIndex]["in"] = True
 
         # Add a link between the state_before and the function node, 
-        agent_subgraphs[agent_name].edge(state_before, function_name)
+        agent_subgraphs[agent_name].edge(
+          state_before, 
+          function_name,
+          group=edge_group,
+        )
         # And a link from the function node to teh after state.
-        agent_subgraphs[agent_name].edge(function_name, state_after)
+        agent_subgraphs[agent_name].edge(
+          function_name, 
+          state_after,
+          group=edge_group,
+        )
 
 
         # Store message related information in a global list for later insertion.
@@ -641,32 +652,25 @@ def generate_graphviz(args, xml):
             })
       elif function_name in host_layer_functions:
         # Add a node for the host layer function.
+        group="host_layer_group"
         hostLayerFunction_subgraph.node(
           function_name,
           shape=FUNCTION_SHAPE,
+          group=group,
         )
         state_before = "{:}_{:}".format("host", layerIndex)
         state_after = "{:}_{:}".format("host", layerIndex + 1)
 
         # Add a link between the state_before and the function node, 
-        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR)
+        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR, group="host_layer_group")
         # And a link from the function node to the after state.
-        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR)
+        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR, group="host_layer_group")
 
         # Mark off the connection if staying in the same state
         hostLayerFunction_connections[layerIndex] = True
 
         # Add a rank same index.
         rank_list["f_{:}".format(layerIndex)].append(function_name)
-
-
-
-  # for a, states in agent_state_connections.items():
-  #   print(a)
-  #   for s, layers in states.items():
-  #     print("  " + s)
-  #     for l, v in enumerate(layers):
-  #       print("    "+ str(l) + " " + str(v))
 
   # Add missing links and find foldable links
   foldable_links = OrderedDict()
