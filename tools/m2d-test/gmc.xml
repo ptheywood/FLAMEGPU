@@ -366,11 +366,27 @@
           <nextState>switch</nextState>
           <condition>
             <lhs>
-              <agentVariable>engaged_to</agentVariable>
+              <agentVariable>x</agentVariable>
             </lhs>
-            <operator>==</operator>
+            <operator>&lt;</operator>
             <rhs>
-              <value>-1</value>
+              <condition>
+                <lhs>
+                <agentVariable>y</agentVariable>
+                </lhs>
+                <operator>+</operator>
+                <rhs>
+                  <condition>
+                    <lhs>
+                    <agentVariable>z</agentVariable>
+                    </lhs>
+                    <operator>*</operator>
+                    <rhs>
+                      <value>N</value>
+                    </rhs>
+                  </condition>
+                </rhs>
+              </condition>
             </rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>

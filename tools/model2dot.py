@@ -320,6 +320,82 @@ def get_agent_names(args, xmlroot):
   #       data.append(name.text)
   # return data
 
+def nonrecursive_condition_half_to_string(xml):
+  if xml is not None:
+    value = xml.find("xmml:value", NAMESPACES)
+    agent_variable = xml.find("xmml:agentVariable", NAMESPACES)
+
+    if value is not None:
+      return "{:}".format(value.text)
+    elif agent_variable is not None:
+      return "agent->{:}".format(agent_variable.text)
+    else:
+      return ""
+  else:
+    return ""
+
+# @todo - this could be much, much better somehow
+def recurse_condition_lhs_op_rhs(xml):
+  if xml is not None:
+    # Find the lhs, op and rhs elements
+    lhs = xml.find("xmml:lhs", NAMESPACES)
+    op = xml.find("xmml:operator", NAMESPACES)
+    rhs = xml.find("xmml:rhs", NAMESPACES)
+
+
+    lhs_string = ""
+    rhs_string = ""
+
+    # If all 3 are present
+    if lhs is not None and op is not None and rhs is not None:
+      # If the lhs includes a condition, recurse. 
+      # Encapsulate this bit as a whole?
+      lhs_condition = lhs.find("xmml:condition", NAMESPACES)
+      if lhs_condition is not None:
+        # Recurse to check the lhs. 
+        inner_lhs = recurse_condition_lhs_op_rhs(lhs_condition)
+        lhs_string = "({:})".format(inner_lhs)
+      else:
+        # Not recursive
+        lhs_string = nonrecursive_condition_half_to_string(lhs)
+
+      rhs_condition = rhs.find("xmml:condition", NAMESPACES)
+      if rhs_condition is not None:
+        # Recurse to check the rhs
+        inner_rhs = recurse_condition_lhs_op_rhs(rhs_condition)
+        rhs_string = "({:})".format(inner_rhs)
+      else:
+        # Not recursive rhs
+        rhs_string = nonrecursive_condition_half_to_string(rhs)
+
+      condition = "{:} {:} {:}".format(lhs_string, op.text, rhs_string)
+      return condition
+  # If the xml is invalid, return none.
+  else:
+    return None
+
+def parse_function_condition(xml):
+  if xml is not None:
+    expression = recurse_condition_lhs_op_rhs(xml)
+
+    string = "{:}".format(expression)
+    # print("condition:", string)
+  else:
+    return None
+
+def parse_function_global_condition(xml):
+  if xml is not None:
+
+    expression = recurse_condition_lhs_op_rhs(xml)
+    maxIters = xml.find("gpu:maxItterations", NAMESPACES)
+    mustEvaluateTo = xml.find("gpu:mustEvaluateTo", NAMESPACES)
+
+    string = "({:}) == {:} (upto {:} times)".format(expression,  mustEvaluateTo.text, maxIters.text)
+    # print("globalCondition:", string)
+    return string
+  else:
+    return None
+
 def get_agent_functions(args, xmlroot):
   data = {}
   for xagent in xmlroot.findall('xmml:xagents/gpu:xagent', NAMESPACES):
@@ -329,12 +405,17 @@ def get_agent_functions(args, xmlroot):
       if function_name is not None and xagent_name is not None:
         currentState = function.find('xmml:currentState', NAMESPACES)
         nextState = function.find('xmml:nextState', NAMESPACES)
+        condition = parse_function_condition(function.find('xmml:condition', NAMESPACES))
+        globalCondition = parse_function_global_condition(function.find('gpu:globalCondition', NAMESPACES))
+
         data[function_name.text] = {
           "agent": xagent_name.text,
           "currentState": currentState.text,
           "nextState": nextState.text,
           "inputs": [],
           "outputs": [],
+          "condition": condition,
+          "globalCondition": globalCondition,
         }
         # inputs
         for msg in function.findall('xmml:inputs/gpu:input', NAMESPACES):
