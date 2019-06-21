@@ -412,6 +412,38 @@ def parse_function_global_condition(xml):
   else:
     return None
 
+
+def get_rng_flag(xml):
+  flag = False
+  if xml is not None:
+    element = xml.find("gpu:RNG", NAMESPACES)
+    flag = element is not None and element.text == "true"
+  return flag
+
+def get_reallocate_flag(xml):
+  flag = False
+  if xml is not None:
+    element = xml.find("gpu:reallocate", NAMESPACES)
+    flag = element is not None and element.text == "true"
+  return flag
+
+def get_xagent_outputs(xml):
+  data = []
+  if xml is not None:
+    elements = xml.findall("xmml:xagentOutputs/gpu:xagentOutput", NAMESPACES)
+    for element in elements:
+      agent_name = element.find("xmml:xagentName", NAMESPACES)
+      agent_state = element.find("xmml:state", NAMESPACES)
+      if agent_name is not None and agent_state is not None:
+        # This might not be valid, check at usage.
+        data.append({
+          "agent_name": agent_name.text, 
+          "state": agent_state.text,
+        })
+  return data
+
+
+
 def get_agent_functions(args, xmlroot):
   data = {}
   for xagent in xmlroot.findall('xmml:xagents/gpu:xagent', NAMESPACES):
@@ -424,6 +456,11 @@ def get_agent_functions(args, xmlroot):
         condition = parse_function_condition(function.find('xmml:condition', NAMESPACES))
         globalCondition = parse_function_global_condition(function.find('gpu:globalCondition', NAMESPACES))
 
+
+        rng = get_rng_flag(function)
+        xagentOutputs = get_xagent_outputs(function)
+        reallocate = get_reallocate_flag(function)
+
         data[function_name.text] = {
           "agent": xagent_name.text,
           "currentState": currentState.text,
@@ -432,6 +469,9 @@ def get_agent_functions(args, xmlroot):
           "outputs": [],
           "condition": condition,
           "globalCondition": globalCondition,
+          "rng": rng,
+          "xagentOutputs": xagentOutputs,
+          "reallocate": reallocate,
         }
         # inputs
         for msg in function.findall('xmml:inputs/gpu:input', NAMESPACES):
