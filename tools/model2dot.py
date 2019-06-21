@@ -11,8 +11,8 @@
 # @todo - tidy
 # @todo - group for vertical alignment. Keratinocyte is an example. Should use the same group as the ancestor state, unless there are 2 childs of that state.
 # @todo - order is right to left not left to right?
-# @todo - globalConditions - keratinocyte as example
-# @todo - localConditions - stable marriage as example
+# @todo - globalConditions - add a decision box indicating if the func should be used or skipped
+# @todo - localConditions - add a decision box indicating the condition.
 # @todo - death
 # @todo - agent creation
 # @todo - handle terminating paths. I.e. Keratinocyte migrate? / resolve, where currenlty a real-link is drawn even though it is not necesary. I.e. resolve state all immediately feeds through output_location into default
@@ -69,6 +69,9 @@ EDGE_COLOR = "#000000"
 EDGE_FONTCOLOR = "#000000"
 CONDITION_COLOR = "#0000dd"
 CONDITION_FONTCOLOR = "#0000dd"
+
+GLOBAL_CONDITION_COLOR = "#0000ff"
+GLOBAL_CONDITION_SHAPE = "box"
 
 STATE_COLOR = "#aaaaaa"
 STATE_SHAPE = "circle"
@@ -873,10 +876,20 @@ def generate_graphviz(args, xml):
         state_after = "{:}_{:}".format(function_obj["nextState"], layerIndex + 1)
         # print("{:}->{:}, {:}:{:}, {:}=>{:}".format(agent_name, function_name, layerIndex, col,state_before, state_after))
 
+        function_label = function_name
+        function_color = FUNCTION_COLOR
+        function_shape = FUNCTION_SHAPE
+        if function_obj["globalCondition"] is not None:
+          function_label = "{:}\n globalCondtion: {:}".format(function_name, function_obj["globalCondition"])
+          function_color = GLOBAL_CONDITION_COLOR
+          function_shape = GLOBAL_CONDITION_SHAPE
+
         # Add a node for the function.
         agent_subgraphs[agent_name].node(
           function_name,
-          shape=FUNCTION_SHAPE,
+          label=function_label,
+          color = function_color,
+          shape = function_shape,
         )
 
         # Add it to the relevant rank layer.
