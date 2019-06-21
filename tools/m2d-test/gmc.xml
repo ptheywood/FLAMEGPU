@@ -327,6 +327,12 @@
           <name>from_switch</name>
           <currentState>switch</currentState>
           <nextState>default</nextState>
+          <xagentOutputs>
+            <gpu:xagentOutput>
+              <xagentName>antigen</xagentName>
+              <state>extra</state>
+            </gpu:xagentOutput>
+          </xagentOutputs>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
@@ -422,6 +428,12 @@
               <value>0</value>
             </rhs>
           </condition>
+          <xagentOutputs>
+            <gpu:xagentOutput>
+              <xagentName>bcell</xagentName>
+              <state>bcell_default</state>
+            </gpu:xagentOutput>
+          </xagentOutputs>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>

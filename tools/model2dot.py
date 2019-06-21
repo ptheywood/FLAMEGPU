@@ -13,8 +13,6 @@
 # @todo - order is right to left not left to right?
 # @todo - globalConditions - add a decision box indicating if the func should be used or skipped
 # @todo - localConditions - add a decision box indicating the condition.
-# @todo - death
-# @todo - agent creation
 # @todo - handle terminating paths. I.e. Keratinocyte migrate? / resolve, where currenlty a real-link is drawn even though it is not necesary. I.e. resolve state all immediately feeds through output_location into default
 # @todo - fix wiggles
 # @todo - stable marriage as good example of conditional.
@@ -55,6 +53,11 @@ GV_PORT_N = "n"
 GV_PORT_E = "e"
 GV_PORT_S = "s"
 GV_PORT_W = "w"
+
+
+RNG_LABEL = "RNG = true"
+REALLOCATE_LABEL = "reallocate = true"
+
 
 MESSAGE_COLOR = "green4"
 MESSAGE_SHAPE = "parallelogram"
@@ -106,6 +109,11 @@ HIDDEN_LABEL_START = "s"
 HIDDEN_LABEL_END = "e"
 HIDDEN_COLOR_START = HIDDEN_COLOR
 HIDDEN_COLOR_END = HIDDEN_COLOR
+
+XAGENT_OUTPUT_STYLE="dashed"
+XAGENT_OUTPUT_COLOR="#ff00ff"
+XAGENT_OUTPUT_FONTCOLOR="#ff00ff"
+XAGENT_OUTPUT_LABEL="xagentOutput: {:}::{:}"
 
 
 HOSTLAYERFUNCTION_LINK_COLOR = GV_STYLE_INVIS
@@ -942,15 +950,57 @@ def generate_graphviz(args, xml):
         state_after = "{:}_{:}".format(function_obj["nextState"], layerIndex + 1)
         # print("{:}->{:}, {:}:{:}, {:}=>{:}".format(agent_name, function_name, layerIndex, col,state_before, state_after))
 
-        function_label = function_name
+        function_label_lines = [function_name, ""]
         function_color = FUNCTION_COLOR
         function_shape = FUNCTION_SHAPE
         if function_obj["globalCondition"] is not None:
-          function_label = "{:}\n globalCondtion: {:}".format(function_name, function_obj["globalCondition"])
+          function_label_lines.append("globalCondtion: {:}".format(function_obj["globalCondition"]))
           function_color = GLOBAL_CONDITION_COLOR
           function_shape = GLOBAL_CONDITION_SHAPE
 
+        if function_obj["rng"] and RNG_LABEL:
+          function_label_lines.append(RNG_LABEL)
+
+        if function_obj["reallocate"] and REALLOCATE_LABEL:
+          function_label_lines.append(REALLOCATE_LABEL)
+
+        if function_obj["xagentOutputs"] is not None and len(function_obj["xagentOutputs"]) > 0:
+          for xagentOutput in function_obj["xagentOutputs"]:
+            xagentOutput_name = xagentOutput["agent_name"]
+            xagentOutput_state = xagentOutput["state"]
+            xagentOutput_state_after = "{:}_{:}".format(xagentOutput_state, layerIndex + 1)
+            # If the agent name is valid and the state is valid.
+            if xagentOutput_name in agent_names and xagentOutput_state in agent_states[xagentOutput_name]:
+              xagentOutput_label = XAGENT_OUTPUT_LABEL.format(xagentOutput_name, xagentOutput_state)
+              # Add a line to the function.
+              function_label_lines.append(xagentOutput_label)
+
+              # Add a line, needs to be to the parent graph, so it can cross subgraph.
+              # Also need to prevent folding in that case - Need to do the collapsed edges after all agent functions have been parsed. 
+
+              if xagentOutput_name != agent_name:
+                layers_graph.edge(
+                  function_name,
+                  xagentOutput_state_after,
+                  xlabel = xagentOutput_label,
+                  color = XAGENT_OUTPUT_COLOR,
+                  fontcolor = XAGENT_OUTPUT_FONTCOLOR,
+                  style = XAGENT_OUTPUT_STYLE,
+                )
+              else:
+                agent_subgraphs[agent_name].edge(
+                  function_name,
+                  xagentOutput_state_after,
+                  xlabel = xagentOutput_label,
+                  color = XAGENT_OUTPUT_COLOR,
+                  fontcolor = XAGENT_OUTPUT_FONTCOLOR,
+                  style = XAGENT_OUTPUT_STYLE,
+                )
+              # Prevent folding.
+              agent_state_connections[xagentOutput_name][xagentOutput_state][layerIndex+1]["in"] = True
+
         # Add a node for the function.
+        function_label = "\n".join(function_label_lines)
         agent_subgraphs[agent_name].node(
           function_name,
           label=function_label,
@@ -1072,9 +1122,9 @@ def generate_graphviz(args, xml):
         # Add a rank same index.
         rank_list["f_{:}".format(layerIndex)].append(function_name)
 
-  # Add missing links and find foldable links
+  # Add missing links and find foldable LINKS
   foldable_links = OrderedDict()
-
+  # Should refactor this so that a dag is produced between states, that can be used for auto collapse, rather than this not-ideal datastructure.
   for agent_name in agent_names:
     foldable_links[agent_name] = {}
     for state in agent_states[agent_name]:
@@ -1091,7 +1141,8 @@ def generate_graphviz(args, xml):
           if connection_info["direct"]:
             # print("Direct connection between state_before and state_after")
             pass # do nothing.
-          elif not connection_info["direct"] and not connection_info["out"] and not connection_info["in"]:
+          # elif not connection_info["direct"] and not connection_info["out"] and not connection_info["in"]:
+          elif not any(connection_info.values()):
             if STATE_FOLDING :
               # Mark as foldable.
               foldable_links[agent_name][state].append((startLayer, startLayer+1))
