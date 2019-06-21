@@ -49,6 +49,7 @@ GV_STYLE_FILLED="filled"
 GV_STYLE_STRIPED="striped"
 GV_STYLE_INVIS="invis"
 
+VERT_EDGE_WEIGHT = "100"
 
 GV_PORT_N = "n"
 GV_PORT_E = "e"
@@ -924,9 +925,11 @@ def generate_graphviz(args, xml):
         # print("  ", state_before, state_after)
         # Indicate that the state has an incoming / outgoing edge.
         edge_group = None
+        edge_weight = None
         if function_obj["currentState"] == function_obj["nextState"]:
           agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["direct"] = True
           edge_group = function_obj["currentState"]
+          edge_weight = VERT_EDGE_WEIGHT
         agent_state_connections[agent_name][function_obj["currentState"]][layerIndex]["out"] = True
         agent_state_connections[agent_name][function_obj["nextState"]][layerIndex]["in"] = True
 
@@ -950,6 +953,7 @@ def generate_graphviz(args, xml):
           color=edge_color,
           tailport=GV_PORT_S,
           headport=GV_PORT_N,
+          weight=edge_weight
         )
         # And a link from the function node to teh after state.
         agent_subgraphs[agent_name].edge(
@@ -958,6 +962,7 @@ def generate_graphviz(args, xml):
           group=edge_group,
           tailport=GV_PORT_S,
           headport=GV_PORT_N,
+          weight=edge_weight
         )
 
 
@@ -1035,6 +1040,7 @@ def generate_graphviz(args, xml):
     for state in agent_states[agent_name]:
       foldable_links[agent_name][state] = []
       for startLayer, connection_info in enumerate(agent_state_connections[agent_name][state]):
+        edge_weight = VERT_EDGE_WEIGHT
         if startLayer != len(agent_state_connections[agent_name][state]) - 1:
           state_before = "{:}_{:}".format(state, startLayer)
           state_after = "{:}_{:}".format(state, startLayer+1)
@@ -1057,6 +1063,7 @@ def generate_graphviz(args, xml):
                 color=STATE_STATE_LINK_COLOR,
                 tailport=GV_PORT_S,
                 headport=GV_PORT_N,
+                weight=edge_weight,
               )
           else:
             # @todo - this is where we can eliminate impossible state transitions (somehow) Need to consider condtional functions.
@@ -1068,6 +1075,7 @@ def generate_graphviz(args, xml):
               color=STATE_STATE_LINK_COLOR,
               tailport=GV_PORT_S,
               headport=GV_PORT_N,
+              weight=edge_weight,
             )
 
   # The list of foldable links is in order per agent/state pair.
