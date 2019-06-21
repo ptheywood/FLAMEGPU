@@ -20,7 +20,6 @@
 # @todo - stable marriage as good example of conditional.
 # @todo - key
 # @todo - positioning of init functions etc.
-# @todo - iteration loop
 
 
 import argparse
@@ -38,10 +37,9 @@ DEBUG_COLORS = False
 STATE_FOLDING = True
 USE_ORTHO_SPLINES = True
 USE_PORTS = False
-
+ITERATION_LOOP_LINK = False # Doesn't get along with ortho really.
 
 # Constants.
-
 GV_STYLE_SOLID="solid"
 GV_STYLE_DASHED="dashed"
 GV_STYLE_DOTTED="dotted"
@@ -87,6 +85,17 @@ STOP_KEY = "STOP"
 STOP_LABEL = "STOP"
 STOP_SHAPE = "octagon"
 STOP_COLOR = "red"
+
+ITERATION_START_KEY = "iteration_graph_start"
+ITERATION_START_LABEL = "Iteration\nStart"
+ITERATION_START_COLOR = "#00cc00"
+ITERATION_START_SHAPE = "octagon"
+ITERATION_START_STYLE = "solid"
+ITERATION_END_KEY = "iteration_graph_end"
+ITERATION_END_LABEL = "Iteration\nEnd"
+ITERATION_END_COLOR = "#cc0000"
+ITERATION_END_SHAPE = "octagon"
+ITERATION_END_STYLE = "solid"
 
 HIDDEN_COLOR = "#ffffff"
 HIDDEN_STYLE = GV_STYLE_INVIS
@@ -655,18 +664,18 @@ def generate_graphviz(args, xml):
   # iteration_graph.attr(rankdir="RL")
 
   iteration_graph.node(
-    "invisible_iteration_graph_start",
-    label=HIDDEN_LABEL_START,
-    color=HIDDEN_COLOR_START,
-    shape=HIDDEN_SHAPE,
-    style=HIDDEN_STYLE
+    ITERATION_START_KEY,
+    label=ITERATION_START_LABEL,
+    color=ITERATION_START_COLOR,
+    shape=ITERATION_START_SHAPE,
+    style=ITERATION_START_STYLE
   )
   iteration_graph.node(
-    "invisible_iteration_graph_end",
-    label=HIDDEN_LABEL_END,
-    color=HIDDEN_COLOR_END,
-    shape=HIDDEN_SHAPE,
-    style=HIDDEN_STYLE
+    ITERATION_END_KEY,
+    label=ITERATION_END_LABEL,
+    color=ITERATION_END_COLOR,
+    shape=ITERATION_END_SHAPE,
+    style=ITERATION_END_STYLE
   )
 
 
@@ -750,18 +759,21 @@ def generate_graphviz(args, xml):
 
       # Also add an edge from the start of the iteration to the start of the step.
       iteration_graph.edge(
-        "invisible_iteration_graph_start",
+        ITERATION_START_KEY,
         "invisible_stepFunctions_start",
-        color=HIDDEN_COLOR_START,
-        style=HIDDEN_STYLE,
+        # color=ITERATION_START_COLOR,
+        # style=ITERATION_START_STYLE,
+        lhead="cluster_stepFunctions",
       )
       # and end of the step to the start of the layers.
       iteration_graph.edge(
         "invisible_stepFunctions_end",
         "invisible_layers_graph_start",
-        # "invisible_iteration_graph_end",
-        color=HIDDEN_COLOR_END,
-        style=HIDDEN_STYLE,
+        # ITERATION_END_KEY,
+        # color=HIDDEN_COLOR_END,
+        # style=HIDDEN_STYLE,
+        ltail="cluster_stepFunctions",
+        lhead="cluster_layers_graph",
       )
 
       # Add to the main graph
@@ -769,17 +781,30 @@ def generate_graphviz(args, xml):
 
   # Add edges linking the iteration graph and layer graph.
   iteration_graph.edge(
-    "invisible_iteration_graph_start",
+    ITERATION_START_KEY,
     "invisible_layers_graph_start",
     color=HIDDEN_COLOR_START,
-    style=HIDDEN_STYLE
+    style=HIDDEN_STYLE,
   )
   iteration_graph.edge(
     "invisible_layers_graph_end",
-    "invisible_iteration_graph_end",
-    color=HIDDEN_COLOR_END,
-    style=HIDDEN_STYLE
+    ITERATION_END_KEY,
+    # color=HIDDEN_COLOR_END,
+    # style=HIDDEN_STYLE,
+    ltail="cluster_layers_graph"
   )
+
+  # Add iteration loop.
+  if ITERATION_LOOP_LINK:
+    iteration_graph.edge(
+      ITERATION_START_KEY,
+      ITERATION_END_KEY,
+      # color=HIDDEN_COLOR_END,
+      # style=HIDDEN_STYLE,
+      lhead="cluster_iteration_graph",
+      dir="back"
+    )
+
 
 
   layer_count = len(function_layers)
@@ -1220,13 +1245,13 @@ def generate_graphviz(args, xml):
   if render_init_functions(args):
     dot.edge(
       "invisible_initFunctions_end",
-      "invisible_iteration_graph_start", 
+      ITERATION_START_KEY, 
       ltail=CLUSTER_INIT_FUNCTIONS_KEY, 
       lhead=CLUSTER_ITERATION_GRAPH_KEY,
     )
   if render_exit_functions(args):
     dot.edge(
-      "invisible_iteration_graph_end",
+      ITERATION_END_KEY,
       "invisible_exitFunctions_start", 
       ltail=CLUSTER_ITERATION_GRAPH_KEY, 
       lhead= CLUSTER_EXIT_FUNCTIONS_KEY,
@@ -1234,9 +1259,9 @@ def generate_graphviz(args, xml):
 
 
   # Calculate where start and end should connect to. Default to the iteration subgraph cluster
-  start_dest_node = "invisible_iteration_graph_start"
+  start_dest_node = ITERATION_START_KEY
   start_dest_cluster = CLUSTER_ITERATION_GRAPH_KEY
-  end_source_node = "invisible_iteration_graph_end"
+  end_source_node = ITERATION_END_KEY
   end_source_cluster = CLUSTER_ITERATION_GRAPH_KEY
 
   # If we have an init, connect the start to init.
