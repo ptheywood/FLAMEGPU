@@ -17,6 +17,7 @@ examples/**/x64
 *.dot
 *.gv
 *.pdf
+*.svg
 
 
 ######
