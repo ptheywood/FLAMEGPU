@@ -15,8 +15,6 @@
 # @todo - localConditions - stable marriage as example
 # @todo - death
 # @todo - agent creation
-# @todo - hostLauyer functions
-# @todo - skip linear state relationships (when no conditionals)
 # @todo - handle terminating paths. I.e. Keratinocyte migrate? / resolve, where currenlty a real-link is drawn even though it is not necesary. I.e. resolve state all immediately feeds through output_location into default
 # @todo - fix wiggles
 # @todo - stable marriage as good example of conditional.
