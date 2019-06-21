@@ -38,6 +38,16 @@ USE_PORTS = False
 ITERATION_LOOP_LINK = False # Doesn't get along with ortho really.
 
 # Constants.
+
+# Choose from "dot", "neato", "fdp". "dot" is the only sane option.
+GRAPHVIZ_ENGINE = "dot"
+
+# Output formats. Others are supported by graphviz but are less suitable
+AVAILABLE_OUTPUT_FORMATS = ["pdf", "svg", "png"]
+DEFAULT_OUTPUT_FORMAT = AVAILABLE_OUTPUT_FORMATS[0]
+
+
+
 GV_STYLE_SOLID="solid"
 GV_STYLE_DASHED="dashed"
 GV_STYLE_DOTTED="dotted"
@@ -219,6 +229,12 @@ def parse_arguments():
     "--render",
     action="store_true",
     help="Render the graphviz dotfile"
+    )
+  parser.add_argument(
+    "--format",
+    choices=AVAILABLE_OUTPUT_FORMATS,
+    default=DEFAULT_OUTPUT_FORMAT,
+    help="Output format for rendered file (default: %(default)s)",
     )
   parser.add_argument(
     "--show",
@@ -548,11 +564,13 @@ def generate_graphviz(args, xml):
   function_layers = get_function_layers(args, xmlroot)
   agent_states = get_agent_states(args, xmlroot)
   
-  
-
-
   # Create the digraph
-  dot = graphviz.Digraph(name=model_name, comment="FLAME GPU State Diagram")
+  dot = graphviz.Digraph(
+    name=model_name, 
+    comment="FLAME GPU State Diagram for model_name",
+    engine=GRAPHVIZ_ENGINE,
+    format=args.format,
+  )
 
 
   # Add some global settings.
