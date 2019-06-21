@@ -33,9 +33,14 @@ import graphviz
 from collections import OrderedDict
 import tempfile
 
+# Config options
 DEBUG_COLORS = False
 STATE_FOLDING = True
+USE_ORTHO_SPLINES = True
+USE_PORTS = False
 
+
+# Constants.
 
 GV_STYLE_SOLID="solid"
 GV_STYLE_DASHED="dashed"
@@ -46,6 +51,11 @@ GV_STYLE_FILLED="filled"
 GV_STYLE_STRIPED="striped"
 GV_STYLE_INVIS="invis"
 
+
+GV_PORT_N = "n"
+GV_PORT_E = "e"
+GV_PORT_S = "s"
+GV_PORT_W = "w"
 
 MESSAGE_COLOR = "green4"
 MESSAGE_SHAPE = "parallelogram"
@@ -123,6 +133,7 @@ CLUSTER_AGENT_FUNCTIONS_STYLES = [GV_STYLE_SOLID]
 
 CLUSTER_PENWIDTH="3"
 
+# Debug mode constant changes.
 if DEBUG_COLORS:
   HIDDEN_COLOR = "#dddddd"
   HIDDEN_STYLE = GV_STYLE_SOLID
@@ -138,6 +149,13 @@ if DEBUG_COLORS:
   HOSTLAYERFUNCTION_STATE_STYLE = GV_STYLE_SOLID
   HOSTLAYERFUNCTION_STATE_COLOR = "#ff00ff"
   HOSTLAYERFUNCTION_STATE_SHAPE = "circle"
+
+# Ortho + ports do not get along. https://gitlab.com/graphviz/graphviz/issues/1415
+if not USE_PORTS or USE_ORTHO_SPLINES:
+  GV_PORT_N = None
+  GV_PORT_E = None
+  GV_PORT_S = None
+  GV_PORT_W = None
 
 
 
@@ -395,9 +413,18 @@ def generate_graphviz(args, xml):
   # Add some global settings.
   dot.body.append("\tnewrank=true;")
   dot.body.append("\tcompound=true;")
-  dot.body.append("\tsplines=ortho;")
-  # dot.body.append("\trankdir=ortho;")
-  # dot.body.append("\tordering=out;")
+  if USE_ORTHO_SPLINES:
+    dot.body.append("\tsplines=ortho;")
+    dot.body.append("\trankdir=ortho;")
+  else:
+    # dot.body.append("\tsplines=none")
+    # dot.body.append("\tsplines=line")
+    # dot.body.append("\tsplines=polyline")
+    # dot.body.append("\tsplines=curved")
+    dot.body.append("\tsplines=spline")
+
+
+  dot.body.append("\tordering=out;")
 
   # Populate the digraph.
 
@@ -435,7 +462,12 @@ def generate_graphviz(args, xml):
 
       # Add edge between subsequent nodes, if needed.
       for a, b in zip(init_functions, init_functions[1:]):
-        ifg.edge(a, b)
+        ifg.edge(
+          a, 
+          b,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
 
       # Add an invisible nodes
       ifg.node(
@@ -486,7 +518,12 @@ def generate_graphviz(args, xml):
       
       # Add edge between subsequent nodes, if needed.
       for a, b in zip(exit_functions, exit_functions[1:]):
-        efg.edge(a, b)
+        efg.edge(
+          a,
+          b,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
 
       efg.node(
         "invisible_exitFunctions_start",
@@ -589,7 +626,12 @@ def generate_graphviz(args, xml):
       
       # Add edge between subsequent nodes, if needed.
       for a, b in zip(step_functions, step_functions[1:]):
-        sfg.edge(a, b)
+        sfg.edge(
+          a,
+          b,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
 
       # sfg.node("invisible_stepFunctions", shape="point", style=GV_STYLE_INVIS)
       sfg.node(
@@ -624,7 +666,7 @@ def generate_graphviz(args, xml):
         "invisible_iteration_graph_start",
         "invisible_stepFunctions_start",
         color=HIDDEN_COLOR_START,
-        style=HIDDEN_STYLE
+        style=HIDDEN_STYLE,
       )
       # and end of the step to the start of the layers.
       iteration_graph.edge(
@@ -632,7 +674,7 @@ def generate_graphviz(args, xml):
         "invisible_layers_graph_start",
         # "invisible_iteration_graph_end",
         color=HIDDEN_COLOR_END,
-        style=HIDDEN_STYLE
+        style=HIDDEN_STYLE,
       )
 
       # Add to the main graph
@@ -771,12 +813,16 @@ def generate_graphviz(args, xml):
           state_before, 
           function_name,
           group=edge_group,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
         )
         # And a link from the function node to teh after state.
         agent_subgraphs[agent_name].edge(
           function_name, 
           state_after,
           group=edge_group,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
         )
 
 
@@ -820,9 +866,25 @@ def generate_graphviz(args, xml):
         state_after = "{:}_{:}".format("host", layerIndex + 1)
 
         # Add a link between the state_before and the function node, 
-        hostLayerFunction_subgraph.edge(state_before, function_name, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR, group="host_layer_group")
+        hostLayerFunction_subgraph.edge(
+          state_before, 
+          function_name, 
+          weight="10", 
+          color=HOSTLAYERFUNCTION_LINK_COLOR, 
+          group="host_layer_group",
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
         # And a link from the function node to the after state.
-        hostLayerFunction_subgraph.edge(function_name, state_after, weight="10", color=HOSTLAYERFUNCTION_LINK_COLOR, group="host_layer_group")
+        hostLayerFunction_subgraph.edge(
+          function_name, 
+          state_after, 
+          weight="10", 
+          color=HOSTLAYERFUNCTION_LINK_COLOR, 
+          group="host_layer_group",
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
 
         # Mark off the connection if staying in the same state
         hostLayerFunction_connections[layerIndex] = True
@@ -854,12 +916,24 @@ def generate_graphviz(args, xml):
               foldable_links[agent_name][state].append((startLayer, startLayer+1))
             else:
               # Otherwise add a link.
-              agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
+              agent_subgraphs[agent_name].edge(
+                state_before, 
+                state_after, 
+                color=STATE_STATE_LINK_COLOR,
+                tailport=GV_PORT_S,
+                headport=GV_PORT_N,
+              )
           else:
             # @todo - this is where we can eliminate impossible state transitions (somehow) Need to consider condtional functions.
             # There should always be *exactly* one non-conditional outgoing link from a node
             # But if 
-            agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
+            agent_subgraphs[agent_name].edge(
+              state_before, 
+              state_after, 
+              color=STATE_STATE_LINK_COLOR,
+              tailport=GV_PORT_S,
+              headport=GV_PORT_N,
+            )
 
   # The list of foldable links is in order per agent/state pair.
   # Iterate the lists pairwise, comparing the relevant components, building the list of newlinks.
@@ -888,7 +962,13 @@ def generate_graphviz(args, xml):
       for link in new_links:
         state_before = "{:}_{:}".format(state, link[0])
         state_after = "{:}_{:}".format(state, link[1])
-        agent_subgraphs[agent_name].edge(state_before, state_after, color=STATE_STATE_LINK_COLOR)
+        agent_subgraphs[agent_name].edge(
+          state_before, 
+          state_after, 
+          color=STATE_STATE_LINK_COLOR,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
 
       # Remove each folded state from the global list of state nodes to create.
       for i in folded_states:
@@ -933,7 +1013,13 @@ def generate_graphviz(args, xml):
         state_before = "{:}_{:}".format("host", startLayer)
         state_after = "{:}_{:}".format("host", startLayer+1)
         # Add the edge
-        hostLayerFunction_subgraph.edge(state_before, state_after, color=HOSTLAYERFUNCTION_LINK_COLOR)
+        hostLayerFunction_subgraph.edge(
+          state_before, 
+          state_after, 
+          color=HOSTLAYERFUNCTION_LINK_COLOR,
+          tailport=GV_PORT_S,
+          headport=GV_PORT_N,
+        )
 
         # Mark as done
         hostLayerFunction_connections[startLayer] = True
@@ -971,6 +1057,8 @@ def generate_graphviz(args, xml):
         message_node_key,
         color=MESSAGE_COLOR,
         penwidth="3",
+        tailport=GV_PORT_S,
+        # headport=GV_PORT_N, # ports on paral;lelograms are bad
       )
 
     # in
@@ -982,6 +1070,8 @@ def generate_graphviz(args, xml):
         function_key,
         color=MESSAGE_COLOR,
         penwidth="3",
+        # tailport=GV_PORT_S, # ports on paral;lelograms are bad
+        headport=GV_PORT_N, 
       )
 
   # For each rank list element, specify the nodes as having the same rank.
@@ -1057,12 +1147,16 @@ def generate_graphviz(args, xml):
     start_dest_node, 
     lhead=start_dest_cluster,
     group="outer",
+    tailport=GV_PORT_S,
+    headport=GV_PORT_N,
   )
   dot.edge(
     end_source_node, 
     STOP_KEY,
     ltail=end_source_cluster,
     group="outer",
+    tailport=GV_PORT_S,
+    headport=GV_PORT_N,
   )
 
   # dot.attr(rank="same")
