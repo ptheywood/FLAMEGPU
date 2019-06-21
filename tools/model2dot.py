@@ -574,20 +574,20 @@ def generate_graphviz(args, xml):
 
 
   # Add some global settings.
-  dot.body.append("\tnewrank=true;")
-  dot.body.append("\tcompound=true;")
+  dot.graph_attr["newrank"]="true"
+  dot.graph_attr["compound"]="true"
   if USE_ORTHO_SPLINES:
-    dot.body.append("\tsplines=ortho;")
-    dot.body.append("\trankdir=ortho;")
+    dot.graph_attr["splines"]="ortho"
+    # dot.graph_attr["rankdir"]="ortho"
   else:
-    # dot.body.append("\tsplines=none")
-    # dot.body.append("\tsplines=line")
-    # dot.body.append("\tsplines=polyline")
-    # dot.body.append("\tsplines=curved")
-    dot.body.append("\tsplines=spline")
+    # dot.graph_attr["splines"]="none"
+    # dot.graph_attr["splines"]="line"
+    # dot.graph_attr["splines"]="polyline"
+    # dot.graph_attr["splines"]="curved"
+    dot.graph_attr["splines"]="spline"
 
 
-  dot.body.append("\tordering=out;")
+  dot.graph_attr["ordering"]="out"
 
   # Populate the digraph.
 
