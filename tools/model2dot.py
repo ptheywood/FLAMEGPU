@@ -65,6 +65,11 @@ FUNCTION_SHAPE = "box"
 FUNCTION_LINK_COLOR = "#000000"
 
 
+EDGE_COLOR = "#000000"
+EDGE_FONTCOLOR = "#000000"
+CONDITION_COLOR = "#0000dd"
+CONDITION_FONTCOLOR = "#0000dd"
+
 STATE_COLOR = "#aaaaaa"
 STATE_SHAPE = "circle"
 STATE_STATE_LINK_COLOR = "#000000"
@@ -377,9 +382,8 @@ def recurse_condition_lhs_op_rhs(xml):
 def parse_function_condition(xml):
   if xml is not None:
     expression = recurse_condition_lhs_op_rhs(xml)
-
     string = "{:}".format(expression)
-    # print("condition:", string)
+    return string
   else:
     return None
 
@@ -391,7 +395,6 @@ def parse_function_global_condition(xml):
     mustEvaluateTo = xml.find("gpu:mustEvaluateTo", NAMESPACES)
 
     string = "({:}) == {:} (upto {:} times)".format(expression,  mustEvaluateTo.text, maxIters.text)
-    # print("globalCondition:", string)
     return string
   else:
     return None
@@ -890,10 +893,23 @@ def generate_graphviz(args, xml):
         agent_state_connections[agent_name][function_obj["nextState"]][layerIndex]["in"] = True
 
         # Add a link between the state_before and the function node, 
+        # Optionally label with a function condition. @future - add a decision node?
+        edge_label = None
+        edge_fontcolor = EDGE_FONTCOLOR
+        edge_color = EDGE_COLOR
+        if function_obj["condition"] is not None:
+          edge_label = function_obj["condition"]
+          edge_fontcolor = CONDITION_FONTCOLOR
+          edge_color = CONDITION_COLOR
+
+
         agent_subgraphs[agent_name].edge(
           state_before, 
           function_name,
           group=edge_group,
+          xlabel=edge_label,
+          fontcolor=edge_fontcolor,
+          color=edge_color,
           tailport=GV_PORT_S,
           headport=GV_PORT_N,
         )
