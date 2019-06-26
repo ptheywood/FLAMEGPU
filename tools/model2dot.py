@@ -15,7 +15,6 @@
 # @todo - terminating paths - highlight impossible sections of the graph
 # @todo - fix wiggles
 # @todo - key
-# @todo - positioning of init functions etc.
 
 
 import argparse
