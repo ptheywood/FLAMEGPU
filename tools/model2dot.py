@@ -15,6 +15,7 @@
 # @todo - terminating paths - highlight impossible sections of the graph
 # @todo - fix wiggles
 # @todo - key
+# @todo - make start and end nodes optionally hidden.
 
 
 import argparse
@@ -29,7 +30,7 @@ import tempfile
 
 # Config options
 DEBUG_COLORS = False
-DEBUG_LABLES = True
+DEBUG_LABLES = False
 STATE_FOLDING = True
 USE_ORTHO_SPLINES = True
 USE_PORTS = False
