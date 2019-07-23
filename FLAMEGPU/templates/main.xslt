@@ -336,7 +336,9 @@ void runConsoleWithoutXMLOutput(int iterations){
 	// Iteratively tun the correct number of iterations.
 	for (int i=0; i&lt; iterations || iterations == 0; i++)
 	{
+		#if !defined(SUPPRESS_SIMULATION_STEP_LOGGING)
 		printf("Processing Simulation Step %i\n", i+1);
+		#endif
 		//single simulation iteration
 		singleIteration();
 		
