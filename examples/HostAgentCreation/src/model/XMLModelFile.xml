@@ -29,6 +29,9 @@
         <gpu:name>generateAgentStep</gpu:name>
       </gpu:stepFunction>
       <gpu:stepFunction>
+        <gpu:name>modifyAgentStep</gpu:name>
+      </gpu:stepFunction>
+      <gpu:stepFunction>
         <gpu:name>customOutputStepFunction</gpu:name>
       </gpu:stepFunction>
     </gpu:stepFunctions>
@@ -55,6 +58,11 @@
         <gpu:variable>
           <type>ivec4</type>
           <name>example_vector</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>host_modified</name>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
       </memory>
       <functions>

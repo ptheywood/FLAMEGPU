@@ -222,6 +222,7 @@ int h_xmachine_memory_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of sel
 <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent"><xsl:variable name="agent_name" select="xmml:name"/>
 <xsl:for-each select="xmml:states/gpu:state"><xsl:variable name="agent_state" select="xmml:name"/>
 <xsl:for-each select="../../xmml:memory/gpu:variable"><xsl:variable name="variable_name" select="xmml:name"/><xsl:variable name="variable_type" select="xmml:type" />unsigned int h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_iteration;
+bool h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required;
 </xsl:for-each>
 </xsl:for-each>
 </xsl:for-each>
@@ -445,6 +446,17 @@ extern unsigned int getIterationNumber(){
     return g_iterationNumber;
 }
 
+
+
+/* Forward declare some functions for host-device data management */
+
+<xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent"><xsl:variable name="agent_name" select="xmml:name"/>
+/** void update_device_<xsl:value-of select="$agent_name"/>_from_host()
+ * Function to push updated agent data to the GPU for a given agent type, for all current agent states and variables 
+ */
+void update_device_<xsl:value-of select="$agent_name"/>_from_host();
+</xsl:for-each>
+
 void initialise(char * inputfile){
     PROFILE_SCOPED_RANGE("initialise");
 
@@ -457,6 +469,7 @@ void initialise(char * inputfile){
 
     // Initialise variables for tracking which iterations' data is accessible on the host.
     <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent"><xsl:variable name="agent_name" select="xmml:name"/><xsl:for-each select="xmml:states/gpu:state"><xsl:variable name="agent_state" select="xmml:name"/><xsl:for-each select="../../xmml:memory/gpu:variable"><xsl:variable name="variable_name" select="xmml:name"/><xsl:variable name="variable_type" select="xmml:type" />h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_iteration = 0;
+    h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required = false;
     </xsl:for-each></xsl:for-each></xsl:for-each>
 
 
@@ -696,8 +709,12 @@ void initialise(char * inputfile){
 #if defined(INSTRUMENT_INIT_FUNCTIONS) &amp;&amp; INSTRUMENT_INIT_FUNCTIONS
 	cudaEventRecord(instrument_start);
 #endif
-    <xsl:value-of select="gpu:name"/>();
     PROFILE_PUSH_RANGE("<xsl:value-of select="gpu:name"/>");
+    <xsl:value-of select="gpu:name"/>();
+    // Update device memory if any changes were made to host-agent data via set methods. Called after each function incase any aggregations occur (with potential loss of performance @optimisation)
+    <xsl:for-each select="/gpu:xmodel/xmml:xagents/gpu:xagent">
+    update_device_<xsl:value-of select="xmml:name"/>_from_host();
+    </xsl:for-each>
     PROFILE_POP_RANGE();
 #if defined(INSTRUMENT_INIT_FUNCTIONS) &amp;&amp; INSTRUMENT_INIT_FUNCTIONS
 	cudaEventRecord(instrument_stop);
@@ -777,8 +794,12 @@ void cleanup(){
 	cudaEventRecord(instrument_start);
 #endif
 
-    <xsl:value-of select="gpu:name"/>();
     PROFILE_PUSH_RANGE("<xsl:value-of select="gpu:name"/>");
+    <xsl:value-of select="gpu:name"/>();
+    // Update device memory if any changes were made to host-agent data via set methods. Called after each function incase any aggregations occur (with potential loss of performance @optimisation)
+    <xsl:for-each select="/gpu:xmodel/xmml:xagents/gpu:xagent">
+    update_device_<xsl:value-of select="xmml:name"/>_from_host();
+    </xsl:for-each>
 	PROFILE_POP_RANGE();
 
 #if defined(INSTRUMENT_EXIT_FUNCTIONS) &amp;&amp; INSTRUMENT_EXIT_FUNCTIONS
@@ -944,6 +965,10 @@ PROFILE_SCOPED_RANGE("singleIteration");
     PROFILE_PUSH_RANGE("<xsl:value-of select="gpu:name"/>");
 	<xsl:value-of select="gpu:name"/>();<xsl:text>
 	</xsl:text>
+    // Update device memory if any changes were made to host-agent data via set methods. Called after each function incase any aggregations occur (with potential loss of performance @optimisation)
+    <xsl:for-each select="/gpu:xmodel/xmml:xagents/gpu:xagent">
+    update_device_<xsl:value-of select="xmml:name"/>_from_host();
+    </xsl:for-each>
     PROFILE_POP_RANGE();
 #if defined(INSTRUMENT_STEP_FUNCTIONS) &amp;&amp; INSTRUMENT_STEP_FUNCTIONS
 	cudaEventRecord(instrument_stop);
@@ -1144,6 +1169,167 @@ __host__ <xsl:value-of select="$variable_type"/> get_<xsl:value-of select="$agen
 </xsl:for-each>
 </xsl:for-each>
 </xsl:for-each>
+
+
+
+/* Host based modification of agent variables - Step functions only.*/
+// @todo - thorough testing.
+<xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent"><xsl:variable name="agent_name" select="xmml:name"/>
+<xsl:for-each select="xmml:states/gpu:state"><xsl:variable name="agent_state" select="xmml:name"/>
+<xsl:for-each select="../../xmml:memory/gpu:variable"><xsl:variable name="variable_name" select="xmml:name"/><xsl:variable name="variable_type" select="xmml:type" />
+<xsl:if test="not(xmml:arrayLength)">
+/** <xsl:value-of select="$variable_type"/> set_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(unsigned int index, <xsl:value-of select="$variable_type"/> value)
+ * Sets the value of the <xsl:value-of select="$variable_name"/> variable of an <xsl:value-of select="$agent_name"/> agent in the <xsl:value-of select="$agent_state"/> state on the host to that of value. 
+ * If the data is not currently on the host, a memcpy of the data of all agents in that state list will be issued, via a global.
+ * This has a potentially significant performance impact if used improperly.
+ * The value is changed locally, prior to being pushed back to the device at the end of the step function / init function / exit fucntion
+ * @param index the index of the agent within the list.
+ * @param value the new value of agent variable <xsl:value-of select="$variable_name"/>
+ * @return the old value of agent variable <xsl:value-of select="$variable_name"/>
+ */
+__host__ <xsl:value-of select="$variable_type"/> set_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(unsigned int index, <xsl:value-of select="$variable_type"/> value){
+    // Get values to decide if there is work to do. 
+    unsigned int count = get_agent_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_count();
+    unsigned int currentIteration = getIterationNumber();
+    
+    // Check the agent is within bounds.
+    if(count &gt; 0 &amp;&amp; index &lt; count ){
+
+        // Get current data using FLAME GPU api call.
+        <xsl:value-of select="$variable_type"/> old = get_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(index);
+
+        // update the value on the host.
+        h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>-&gt;<xsl:value-of select="$variable_name"/>[index] = value;
+
+        // set the value indicating the data has been changed
+        h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required = true;
+
+
+        // return the old value
+        return old;
+
+    } else {
+        fprintf(stderr, "Warning: Attempting to set <xsl:value-of select="$variable_name"/> for the %u th member of <xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>. count is %u at iteration %u\n", index, count, currentIteration);
+        // Otherwise we return a default value
+        return <xsl:call-template name="defaultInitialiser"><xsl:with-param name="type" select="$variable_type"/></xsl:call-template>;
+    }
+}
+
+/** void update_device_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>()
+ * Update the device copy of the <xsl:value-of select="$variable_name"/> variable for <xsl:value-of select="$agent_name"/> agents in the <xsl:value-of select="$agent_state"/> state based on host data.
+ * Data is only moved if the appropriate host flag is set.
+ */
+void update_device_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(){
+
+    // Get values to decide if there is work to do. 
+    unsigned int count = get_agent_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_count();
+  
+    // If data was changed this iteration, push data to the device
+    if(h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required == true){
+        gpuErrchk(
+            cudaMemcpy(
+                d_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>-&gt;<xsl:value-of select="$variable_name"/>,
+                h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>-&gt;<xsl:value-of select="$variable_name"/>,
+                count * sizeof(<xsl:value-of select="$variable_type"/>),
+                cudaMemcpyHostToDevice
+            )
+        );
+
+        // Set the flag back to false indicating the data has been updated.
+        h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required = false;
+    }
+
+}
+
+</xsl:if>
+<!-- Treat array variables differently -->
+<xsl:if test="xmml:arrayLength">
+/** <xsl:value-of select="$variable_type"/> set_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(unsigned int index, unsigned int element, , <xsl:value-of select="$variable_type"/> value)
+ * sets the element-th value of the <xsl:value-of select="$variable_name"/> variable array of an <xsl:value-of select="$agent_name"/> agent in the <xsl:value-of select="$agent_state"/> state to value from the host.  
+ * If the data is not currently on the host, a memcpy of the data of all agents in that state list will be issued, via a global.
+ * modified on the host, then pushed back to the device at the end of the agent function.
+ * This has a potentially significant performance impact if used improperly.
+ * @param index the index of the agent within the list.
+ * @param element the element index within the variable array
+ * @param value the new value of agent variable <xsl:value-of select="$variable_name"/>
+ * @return the old element-th value of agent variable <xsl:value-of select="$variable_name"/>
+ */
+__host__ <xsl:value-of select="$variable_type"/> set_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(unsigned int index, unsigned int element, <xsl:value-of select="$variable_type"/> value){
+    // Get values to decide if there is work to do. 
+    unsigned int count = get_agent_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_count();
+    unsigned int numElements = <xsl:value-of select="xmml:arrayLength"/>;
+    unsigned int currentIteration = getIterationNumber();
+    
+    // Check the agent is within bounds.
+    if(count &gt; 0 &amp;&amp; index &lt; count &amp;&amp; element &lt; numElements ){
+
+
+        // Get current data using FLAME GPU api call.
+        <xsl:value-of select="$variable_type"/> old = get_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(index, element);
+
+        // update the value on the host.
+        h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>-&gt;<xsl:value-of select="$variable_name"/>[index + (element * xmachine_memory_<xsl:value-of select="$agent_name"/>_MAX)] = value;
+
+        // set the value indicating the data has been changed
+        h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required = true;
+
+        // return the old value
+        return old;
+
+    } else {
+        fprintf(stderr, "Warning: Attempting to set <xsl:value-of select="$variable_name"/> for the %u th member of <xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>. count is %u at iteration %u\n", index, count, currentIteration);
+        // Otherwise we return a default value
+        return <xsl:call-template name="defaultInitialiser"><xsl:with-param name="type" select="$variable_type"/></xsl:call-template>;
+    }
+
+}
+
+/** void update_device_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>()
+ * Update the device copy of the <xsl:value-of select="$variable_name"/> variable for <xsl:value-of select="$agent_name"/> agents in the <xsl:value-of select="$agent_state"/> state based on host data.
+ * Data is only moved if the appropriate host flag is set.
+ */
+void update_device_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>(){
+
+    // Get values to decide if there is work to do. 
+    unsigned int count = get_agent_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_count();
+    unsigned int numElements = <xsl:value-of select="xmml:arrayLength"/>;
+  
+    // If data was changed this iteration, push data to the device
+    if(h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required == true){
+        <!-- @optimisation - If the count is close enough to MAX, it would be better to issue a single large memcpy. -->
+        for(unsigned int e = 0; e &lt; numElements; e++){
+            gpuErrchk(
+                cudaMemcpy(
+                    d_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>-&gt;<xsl:value-of select="$variable_name"/> + (e * xmachine_memory_<xsl:value-of select="$agent_name"/>_MAX),
+                    h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>-&gt;<xsl:value-of select="$variable_name"/> + (e * xmachine_memory_<xsl:value-of select="$agent_name"/>_MAX), 
+                    count * sizeof(<xsl:value-of select="$variable_type"/>), 
+                    cudaMemcpyHostToDevice
+                )
+            );
+        }
+
+        // Set the flag back to false indicating the data has been updated.
+        h_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>_data_h2d_required = false;
+    }
+
+}
+</xsl:if>
+</xsl:for-each>
+</xsl:for-each>
+</xsl:for-each>
+
+<xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent"><xsl:variable name="agent_name" select="xmml:name"/>
+/** void update_device_<xsl:value-of select="$agent_name"/>_from_host()
+ * Function to push updated agent data to the GPU for a given agent type, for all current agent states and variables 
+ */
+void update_device_<xsl:value-of select="$agent_name"/>_from_host(){
+  // For each agent state / variable pair, attempt to update the value. The called function handles dynamic checking.
+  <xsl:for-each select="xmml:states/gpu:state"><xsl:variable name="agent_state" select="xmml:name"/>
+  <xsl:for-each select="../../xmml:memory/gpu:variable"><xsl:variable name="variable_name" select="xmml:name"/><xsl:variable name="variable_type" select="xmml:type" />
+  update_device_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$agent_state"/>_variable_<xsl:value-of select="$variable_name"/>();</xsl:for-each></xsl:for-each>
+}
+</xsl:for-each>
+
 
 
 /* Host based agent creation functions */
