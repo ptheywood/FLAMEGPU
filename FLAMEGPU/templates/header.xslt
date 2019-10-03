@@ -766,6 +766,16 @@ typedef enum {
 <xsl:value-of select="xmml:type"/> count_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable(<xsl:value-of select="xmml:type"/> count_value);
 </xsl:if>
 
+<xsl:if test="not(contains(xmml:type, 'vec'))"> <!-- Any non-vector data type can be count_if'd -->
+/** <xsl:value-of select="xmml:type"/> countif_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable(OPERATOR operator){
+ * Counts the number of agent variables which return true for the specified OPERATOR struct
+ * @param operator a struct which must implement __host__ __device__ bool operator(const <xsl:value-of select="xmml:type"/> &amp;<xsl:value-of select="xmml:name"/>) 
+ * @return The number of agent variables for which operator returns true.
+ */
+template &lt;typename OPERATOR&gt;
+std::ptrdiff_t countif_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable(OPERATOR op);
+</xsl:if>
+
 <xsl:if test="not(contains(xmml:type, 'vec'))"> <!-- Any non-vector data type can be min/maxed. -->
 /** <xsl:value-of select="xmml:type"/> min_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable();
  * Min functions can be used by visualisations, step and exit functions to gather data for plotting or updating global variables

@@ -1527,6 +1527,23 @@ void h_add_agents_<xsl:value-of select="$agent_name" />_<xsl:value-of select="$s
 }
 </xsl:if>
 
+<xsl:if test="not(contains(xmml:type, 'vec'))"> <!-- Any non-vector data type can be count_if'd -->
+/** <xsl:value-of select="xmml:type"/> countif_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable(OPERATOR operator){
+ * Counts the number of agent variables which return true for the specified OPERATOR struct
+ * @param operator a struct which must implement __host__ __device__ bool operator(const <xsl:value-of select="xmml:type"/> &amp;<xsl:value-of select="xmml:name"/>) 
+ * @return The number of agent variables for which operator returns true.
+ */
+template &lt;typename OPERATOR&gt;
+std::ptrdiff_t countif_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable(OPERATOR op){
+    //count_if in default stream
+    // @future - do this with CUB rather than thrust.
+    thrust::device_ptr&lt;<xsl:value-of select="xmml:type"/>&gt; thrust_ptr = thrust::device_pointer_cast(d_<xsl:value-of select="$agent_name"/>s_<xsl:value-of select="$state"/>-&gt;<xsl:value-of select="xmml:name"/>);
+    std::ptrdiff_t result = thrust::count_if(thrust_ptr, thrust_ptr + h_xmachine_memory_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_count, op);
+    return result;
+
+}
+</xsl:if>
+
 <xsl:if test="not(contains(xmml:type, 'vec'))"> <!-- Any non-vector data type can be min/maxed. -->
 <xsl:value-of select="xmml:type"/> min_<xsl:value-of select="$agent_name"/>_<xsl:value-of select="$state"/>_<xsl:value-of select="xmml:name"/>_variable(){
     //min in default stream
