@@ -753,6 +753,13 @@ void initialise(char * inputfile){
 		printf("Init agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count: %u\n",get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count());
 	</xsl:for-each>
 #endif
+
+#if defined(OUTPUT_POPULATION_PER_LAYER) &amp;&amp; OUTPUT_POPULATION_PER_LAYER
+	// Print the agent population size of all agents in all states
+	<xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">
+		printf("Layer0 Init agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count: %u\n",get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count());
+	</xsl:for-each>
+#endif
 } 
 
 <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent"><xsl:if test="gpu:type='continuous'"> <xsl:for-each select="xmml:states/gpu:state">
@@ -907,6 +914,16 @@ PROFILE_SCOPED_RANGE("singleIteration");
 	/* Call agent functions in order iterating through the layer functions */
 	<xsl:for-each select="gpu:xmodel/xmml:layers/xmml:layer">
 	/* Layer <xsl:value-of select="position()"/>*/
+	<xsl:variable name="layer_index" select="position()" />
+
+
+#if defined(OUTPUT_POPULATION_PER_LAYER) &amp;&amp; OUTPUT_POPULATION_PER_LAYER
+	// Print the agent population size of all agents in all states at the end of each layer. 
+	<xsl:for-each select="/gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">
+		printf("Layer <xsl:value-of select="$layer_index" /> agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count: %u\n",get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count());
+	</xsl:for-each>
+#endif
+
 	<xsl:for-each select="gpu:layerFunction">
 	<xsl:variable name="function" select="xmml:name"/>
   <xsl:variable name="stream_num" select="position()"/>
