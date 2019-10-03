@@ -916,14 +916,6 @@ PROFILE_SCOPED_RANGE("singleIteration");
 	/* Layer <xsl:value-of select="position()"/>*/
 	<xsl:variable name="layer_index" select="position()" />
 
-
-#if defined(OUTPUT_POPULATION_PER_LAYER) &amp;&amp; OUTPUT_POPULATION_PER_LAYER
-	// Print the agent population size of all agents in all states at the end of each layer. 
-	<xsl:for-each select="/gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">
-		printf("Layer <xsl:value-of select="$layer_index" /> agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count: %u\n",get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count());
-	</xsl:for-each>
-#endif
-
 	<xsl:for-each select="gpu:layerFunction">
 	<xsl:variable name="function" select="xmml:name"/>
   <xsl:variable name="stream_num" select="position()"/>
@@ -958,6 +950,12 @@ PROFILE_SCOPED_RANGE("singleIteration");
 #endif
 </xsl:for-each>
 	</xsl:for-each>cudaDeviceSynchronize();
+	#if defined(OUTPUT_POPULATION_PER_LAYER) &amp;&amp; OUTPUT_POPULATION_PER_LAYER
+	// Print the agent population size of all agents in all states at the end of each layer. 
+	<xsl:for-each select="/gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">
+		printf("Layer <xsl:value-of select="$layer_index" /> agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count: %u\n",get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count());
+	</xsl:for-each>
+#endif
   </xsl:for-each>
 
   /* If any Agents can generate IDs, update the host value after agent functions have executed */
