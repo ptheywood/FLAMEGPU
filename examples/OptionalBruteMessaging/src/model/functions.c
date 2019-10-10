@@ -78,7 +78,7 @@ __FLAME_GPU_FUNC__ int AOutput(xmachine_memory_A* agent, xmachine_message_A_msg_
     add_A_msg_message(A_msg_messages, agent->id, tid);
 
     if(tid > d_xmachine_memory_A_count){
-
+        // Out of bounds agents may have executed add_A_message
         printf("tid %u (> %u) id %u outputting (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
     }
 
@@ -98,9 +98,16 @@ __FLAME_GPU_FUNC__ int AInput(xmachine_memory_A* agent, xmachine_message_B_msg_l
         //     printf("Tid %u: B %u received from %u, %u \n", tid, agent->id, current_message->id, current_message->tid);
         // }
 
-        if(agent->id ==0 && current_message->id == 0){
-            printf("message from %u, tid %u\n", current_message->id, current_message->tid);
+        // Use thread 0 to print the thread which sent the message.
+        // Default value of agent->id is also a common issue.
+        if(agent->id == 1 && tid < d_xmachine_memory_A_count){
+        // if( tid < d_xmachine_memory_A_count){
+            printf("A agent %u, read: {B id: %u, tid %u, count %u}\n", agent->id, current_message->id, current_message->tid, current_message->count);
         }
+
+        // if(tid > d_xmachine_memory_A_count && current_message->id == 0){
+        //     printf("message from %u, tid %u\n", current_message->id, current_message->tid);
+        // }
 
         current_message = get_next_B_msg_message(current_message, B_msg_messages);
     }
@@ -109,10 +116,10 @@ __FLAME_GPU_FUNC__ int AInput(xmachine_memory_A* agent, xmachine_message_B_msg_l
     //     printf("idd %u: A %u received %u messages \n", tid, agent->id, count);
     // }
     
-    
-    if(tid > d_xmachine_memory_A_count){
-        printf("tid %u (> %u) id %u executing (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
-    }
+    // Out of boudns agents reading messages from B
+    // if(tid > d_xmachine_memory_A_count){
+    //     printf("tid %u (> %u) id %u (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
+    // }
 
     return 0;
 }
@@ -137,12 +144,10 @@ __FLAME_GPU_FUNC__ int BInputOutput(xmachine_memory_B* agent, xmachine_message_A
 
     agent->count = count;
 
-    // Output a new message, based on the aggregate.
-    if(tid > d_xmachine_memory_B_count){
-        printf("tid %u (> %u) id %u outputting (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
-    }
-    if(agent->count > 0){
-        // printf("B %u outputting message, tid %u\n", agent->id, tid);
+    // Output a new message, based on the aggregate, but only do this for out of bounds threads.
+    if(tid > d_xmachine_memory_B_count/2){
+        printf("tid %u (> %u) id %u outputting an optional message (line %u)\n", tid, d_xmachine_memory_B_count, agent->id, __LINE__);
+
         add_B_msg_message(B_msg_messages, agent->id, tid, agent->count);
     }
 
