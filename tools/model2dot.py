@@ -70,6 +70,9 @@ REALLOCATE_LABEL = "reallocate = true"
 
 MESSAGE_COLOR = "green4"
 MESSAGE_SHAPE = "parallelogram"
+MESSAGE_MARGIN = "0.0,0.0"
+MESSAGE_OUTPUT_STYLE = GV_STYLE_SOLID
+MESSAGE_OUTPUT_OPTIONAL_STYLE = GV_STYLE_DASHED
 
 FUNCTION_COLOR = "black"
 FUNCTION_SHAPE = "box"
@@ -119,7 +122,7 @@ HIDDEN_LABEL_END = "e"
 HIDDEN_COLOR_START = HIDDEN_COLOR
 HIDDEN_COLOR_END = HIDDEN_COLOR
 
-XAGENT_OUTPUT_STYLE="dashed"
+XAGENT_OUTPUT_STYLE=GV_STYLE_DASHED
 XAGENT_OUTPUT_COLOR="#ff00ff"
 XAGENT_OUTPUT_FONTCOLOR="#ff00ff"
 XAGENT_OUTPUT_LABEL="xagentOutput: {:}::{:}"
@@ -193,7 +196,13 @@ if not USE_PORTS or USE_ORTHO_SPLINES:
   GV_PORT_W = None
 
 
-
+PRETTY_PARTITIONING_TYPES = {
+  "partitioningNone": "",
+  "partitioningSpatial": "",
+  "partitioningDiscrete": "", 
+  "partitioningGraphBased": "",
+  "partitioningKeyBased": "",
+}
 
 # Dictionary of the expected XML namespaces, making search easier
 NAMESPACES = {
@@ -525,10 +534,28 @@ def get_agent_states(args, xmlroot):
         data[xagent_name.text].append(state_name.text)
   return data
 
-def get_message_names(args, xmlroot):
-  pass
-
-
+def get_message_lists(args, xmlroot):
+  # PRETTY_PARTITIONING_TYPES
+  data = {}
+  for message_list in xmlroot.findall('xmml:messages/gpu:message', NAMESPACES):
+    message_name = message_list.find('xmml:name', NAMESPACES)
+    if message_name is not None:
+      message_variables = message_list.find('xmml:variables', NAMESPACES)
+      message_buffer_size = message_list.find('gpu:bufferSize', NAMESPACES)
+      variable_count = len(message_variables)
+      buffer_size = message_buffer_size.text
+      partitioning_type = None
+      for partitioning in PRETTY_PARTITIONING_TYPES.keys():
+        partitioning_xml = message_list.find(f'gpu:{partitioning}', NAMESPACES)
+        if partitioning_xml is not None:
+          partitioning_type = partitioning
+      if message_name.text not in data: 
+        data[message_name.text] = {
+          "variableCount": variable_count,
+          "bufferSize": buffer_size,
+          "partitioningType": partitioning_type,
+        }
+  return data
 
 def get_function_layers(args, xmlroot):
   data = []
@@ -562,6 +589,7 @@ def generate_graphviz(args, xml):
   agent_functions = get_agent_functions(args, xmlroot)
   function_layers = get_function_layers(args, xmlroot)
   agent_states = get_agent_states(args, xmlroot)
+  message_lists = get_message_lists(args, xmlroot)
   
   # Create the digraph
   dot = graphviz.Digraph(
@@ -1091,6 +1119,7 @@ def generate_graphviz(args, xml):
         if function_obj["outputs"]:
           for msg_output in function_obj["outputs"]:
             msg_name = msg_output["name"]
+            msg_type = msg_output["type"]
             if msg_name not in message_info:
               message_info[msg_name] = {
                 "output_by": [],
@@ -1100,6 +1129,7 @@ def generate_graphviz(args, xml):
               "agent": agent_name,
               "function": function_name,
               "layer": layerIndex,
+              "type": msg_type,
             })
       elif function_name in host_layer_functions:
         # Add a node for the host layer function.
@@ -1138,6 +1168,13 @@ def generate_graphviz(args, xml):
 
         # Add a rank same index.
         rank_list["f_{:}".format(layerIndex)].append(function_name)
+
+  # Add some extra info on message lists
+  for message_list in message_lists:
+    if message_list in message_info:
+      message_info[message_list]["bufferSize"] = message_lists[message_list]["bufferSize"]
+      message_info[message_list]["variableCount"] = message_lists[message_list]["variableCount"]
+      message_info[message_list]["partitioningType"] = message_lists[message_list]["partitioningType"]
 
   # Add missing links and find foldable LINKS
   foldable_state_state_links = OrderedDict()
@@ -1301,30 +1338,38 @@ def generate_graphviz(args, xml):
   if len(host_layer_functions) > 0:
     layers_graph.subgraph(hostLayerFunction_subgraph)
 
-
   # Add messages nodes
   for message_name in message_info:
     message_node_key = "message_{:}".format(message_name)
+    message_label_lines = [message_name, ""]
+    partitioning_type = message_info[message_name]["partitioningType"]
+    if partitioning_type:
+      message_label_lines.append("Partitioning = {:}".format(partitioning_type))
+    message_label = "\n".join(message_label_lines)
     layers_graph.node(
       message_node_key, 
-      label=message_name,
+      label=message_label,
       shape=MESSAGE_SHAPE,
       fontcolor=MESSAGE_COLOR,
       color=MESSAGE_COLOR,
       penwidth="3",
+      margin=MESSAGE_MARGIN
     )
 
     # Add message edges.
     # out
     for output_by in message_info[message_name]["output_by"]:
       function_key = "{:}".format(output_by["function"])
-
+      is_optional_message = output_by["type"] == "optional_message"
+      message_style = MESSAGE_OUTPUT_OPTIONAL_STYLE if is_optional_message else MESSAGE_OUTPUT_STYLE
       layers_graph.edge(
         function_key,
         message_node_key,
         color=MESSAGE_COLOR,
+        fontcolor=MESSAGE_COLOR,
         penwidth="3",
         tailport=GV_PORT_S,
+        style=message_style,
         # headport=GV_PORT_N, # ports on paral;lelograms are bad
       )
 

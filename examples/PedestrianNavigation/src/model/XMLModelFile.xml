@@ -202,7 +202,7 @@
           <outputs>
             <gpu:output>
               <messageName>pedestrian_location</messageName>
-              <gpu:type>single_message</gpu:type>
+              <gpu:type>optional_message</gpu:type>
             </gpu:output>
           </outputs>
           <gpu:reallocate>false</gpu:reallocate>
