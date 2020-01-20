@@ -197,13 +197,13 @@ if not USE_PORTS or USE_ORTHO_SPLINES:
   GV_PORT_W = None
 
 
-PRETTY_PARTITIONING_TYPES = {
-  "partitioningNone": "",
-  "partitioningSpatial": "",
-  "partitioningDiscrete": "", 
-  "partitioningGraphBased": "",
-  "partitioningKeyBased": "",
-}
+PARTITIONING_TYPES = [
+  "partitioningNone",
+  "partitioningSpatial",
+  "partitioningDiscrete", 
+  "partitioningGraphBased",
+  "partitioningKeyBased",
+]
 
 # Dictionary of the expected XML namespaces, making search easier
 NAMESPACES = {
@@ -536,7 +536,6 @@ def get_agent_states(args, xmlroot):
   return data
 
 def get_message_lists(args, xmlroot):
-  # PRETTY_PARTITIONING_TYPES
   data = {}
   for message_list in xmlroot.findall('xmml:messages/gpu:message', NAMESPACES):
     message_name = message_list.find('xmml:name', NAMESPACES)
@@ -546,7 +545,7 @@ def get_message_lists(args, xmlroot):
       variable_count = len(message_variables)
       buffer_size = message_buffer_size.text
       partitioning_type = None
-      for partitioning in PRETTY_PARTITIONING_TYPES.keys():
+      for partitioning in PARTITIONING_TYPES:
         partitioning_xml = message_list.find(f'gpu:{partitioning}', NAMESPACES)
         if partitioning_xml is not None:
           partitioning_type = partitioning
